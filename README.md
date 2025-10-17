@@ -2,6 +2,26 @@
 
 Agent Chat UI is a Next.js application which enables chatting with any LangGraph server with a `messages` key through a chat interface.
 
+## 📊 自定义组件系统
+
+本项目已集成**前端自定义组件系统**，支持在聊天消息中动态渲染图表、表格等组件：
+
+- ✅ **图表组件** - 基于 ECharts 的交互式图表渲染
+- ✅ **表格组件** - 结构化数据表格展示
+- ✅ **图片组件** - 图片预览和显示
+- ✅ **文件组件** - 文件信息和下载
+- ✅ **Mermaid 图表** - 流程图、序列图、甘特图等可视化图表
+
+📖 **完整文档**: [docs/README.md](docs/README.md)
+
+🚀 **快速开始**: [docs/quick-start.md](docs/quick-start.md)
+
+🔷 **Mermaid 支持**: [docs/mermaid-integration.md](docs/mermaid-integration.md)
+
+🧪 **测试页面**: http://localhost:3000/test-components
+
+---
+
 > [!NOTE]
 > 🎥 Watch the video setup guide [here](https://youtu.be/lInrwVnZ83o).
 
@@ -194,7 +214,7 @@ To productionize the Agent Chat UI, you'll need to pick one of two ways to authe
 
 ### Quickstart - API Passthrough
 
-The quickest way to productionize the Agent Chat UI is to use the [API Passthrough](https://github.com/bracesproul/langgraph-nextjs-api-passthrough) package ([NPM link here](https://www.npmjs.com/package/langgraph-nextjs-api-passthrough)). This package provides a simple way to proxy requests to your LangGraph server, and handle authentication for you.
+The quickest way to productionize the Agent Chat UI is to use the [API Passthrough](https://github.com/langchain-ai/langgraph-nextjs-api-passthrough) package. This package provides a simple way to proxy requests to your LangGraph server, and handle authentication for you.
 
 This repository already contains all of the code you need to start using this method. The only configuration you need to do is set the proper environment variables.
 
