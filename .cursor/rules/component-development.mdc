@@ -1,0 +1,239 @@
+---
+globs: src/components/**/*.tsx,src/components/**/*.ts
+---
+
+# Component Development Guidelines
+
+## Component Structure
+
+### File Organization
+```
+component-name/
+  ├── index.tsx           # Main component export
+  ├── types.ts            # Type definitions
+  ├── utils.ts            # Helper functions
+  ├── hooks/              # Component-specific hooks
+  └── components/         # Sub-components
+```
+
+### Component Template
+```typescript
+import type { ComponentProps } from "./types";
+
+export function ComponentName({
+  prop1,
+  prop2,
+}: ComponentProps): React.ReactNode {
+  // Hooks
+  const [state, setState] = useState();
+  
+  // Effects
+  useEffect(() => {
+    // Effect logic
+  }, [dependencies]);
+  
+  // Event handlers
+  const handleEvent = () => {
+    // Handler logic
+  };
+  
+  // Render helpers
+  const renderSection = () => {
+    return <div>Section</div>;
+  };
+  
+  // Main render
+  return (
+    <div>
+      {renderSection()}
+    </div>
+  );
+}
+```
+
+## UI Components (shadcn/ui)
+
+### Location
+All reusable UI components are in [src/components/ui](mdc:src/components/ui)
+
+### Usage Pattern
+```typescript
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+
+// Use with Tailwind classes for customization
+<Button variant="default" size="lg">
+  Click me
+</Button>
+```
+
+### Available Components
+- Button, Input, Label, Textarea
+- Card, Separator, Skeleton
+- Avatar, Tooltip, Dialog, Sheet
+- Switch, Password Input
+- Chart Component (ECharts)
+- Sonner (Toast notifications)
+
+### Creating New UI Components
+- Follow shadcn/ui patterns
+- Use Radix UI primitives when possible
+- Support variant props with class-variance-authority
+- Include proper TypeScript types
+
+## Thread Components
+
+### Message Components
+Located in [src/components/thread/messages](mdc:src/components/thread/messages)
+
+#### AI Messages
+See [src/components/thread/messages/ai.tsx](mdc:src/components/thread/messages/ai.tsx)
+- Display AI responses
+- Render tool calls
+- Handle streaming content
+- Support custom components
+
+#### Human Messages
+See [src/components/thread/messages/human.tsx](mdc:src/components/thread/messages/human.tsx)
+- Display user messages
+- Support multimodal content (text, images, files)
+
+#### Tool Calls
+See [src/components/thread/messages/tool-calls.tsx](mdc:src/components/thread/messages/tool-calls.tsx)
+- Display tool invocations
+- Show tool results
+- Collapsible interface
+
+### Custom Component System
+
+#### Frontend Components
+See [src/components/thread/messages/custom-component-registry.tsx](mdc:src/components/thread/messages/custom-component-registry.tsx)
+
+Supported component types:
+- **Chart**: Interactive charts using ECharts
+- **Table**: Structured data tables
+- **Image**: Image preview and display
+- **File**: File information and download
+- **Mermaid**: Diagram rendering
+
+#### Adding Custom Components
+1. Register component in custom-component-registry.tsx
+2. Define component configuration type
+3. Create renderer function
+4. Export from registry
+
+Example:
+```typescript
+export interface NewComponentConfig {
+  type: "new_component";
+  data: {
+    // Component data
+  };
+}
+
+function renderNewComponent(config: NewComponentConfig) {
+  return <NewComponent data={config.data} />;
+}
+```
+
+#### Backend Integration
+Backend can send UI components via:
+```python
+# Python example
+{
+  "type": "ui",
+  "metadata": {
+    "message_id": "msg_123",
+    "component_type": "chart"
+  },
+  "data": {
+    # Component configuration
+  }
+}
+```
+
+## Markdown Components
+
+### Markdown Text
+See [src/components/thread/markdown-text.tsx](mdc:src/components/thread/markdown-text.tsx)
+
+Features:
+- GitHub Flavored Markdown (GFM)
+- Math rendering (KaTeX)
+- Syntax highlighting
+- Mermaid diagrams
+- Custom extensions
+
+### Syntax Highlighting
+See [src/components/thread/syntax-highlighter.tsx](mdc:src/components/thread/syntax-highlighter.tsx)
+- Uses react-syntax-highlighter
+- Supports 100+ languages
+- Dark/light theme support
+
+### Mermaid Diagrams
+See [src/components/thread/mermaid-diagram.tsx](mdc:src/components/thread/mermaid-diagram.tsx)
+- Renders flowcharts, sequence diagrams, etc.
+- Error handling with fallback
+- Theme integration
+
+## Styling Guidelines
+
+### Tailwind CSS
+- Use utility classes for styling
+- Follow mobile-first responsive design
+- Use theme variables for colors: `bg-background`, `text-foreground`
+- Leverage `cn()` utility from [src/lib/utils.ts](mdc:src/lib/utils.ts)
+
+```typescript
+import { cn } from "@/lib/utils";
+
+<div className={cn(
+  "base-classes",
+  condition && "conditional-classes",
+  className  // Allow className override
+)} />
+```
+
+### CSS Variables
+Defined in [src/app/globals.css](mdc:src/app/globals.css)
+- Use HSL color format
+- Support light/dark themes
+- Custom properties prefixed with `--`
+
+### Animations
+- Use Framer Motion for complex animations
+- Use Tailwind animate utilities for simple animations
+- Use CSS transitions for hover/focus states
+
+## Accessibility
+
+### ARIA Labels
+```typescript
+<button aria-label="Close dialog" onClick={onClose}>
+  <X />
+</button>
+```
+
+### Keyboard Navigation
+- Ensure all interactive elements are keyboard accessible
+- Use proper tab order
+- Handle Escape key for dialogs/modals
+
+### Semantic HTML
+- Use proper heading hierarchy (h1, h2, h3)
+- Use semantic elements (nav, main, article, aside)
+- Provide alt text for images
+
+## Component Testing Considerations
+- Keep components pure when possible
+- Separate business logic from presentation
+- Make components controllable via props
+- Provide sensible defaults
+- Document complex props with JSDoc comments
+
+## Performance
+- Memoize expensive renders with React.memo()
+- Use dynamic imports for large components
+- Optimize images with Next.js Image component
+- Lazy load off-screen content

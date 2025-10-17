@@ -1,0 +1,84 @@
+---
+alwaysApply: true
+---
+
+# Project Architecture Guide
+
+## Overview
+This is a Next.js application for chatting with LangGraph agents. The project uses TypeScript, React 19, and integrates with the LangGraph SDK for agent communication.
+
+## Core Technologies
+- **Framework**: Next.js 15.5+ (App Router)
+- **Language**: TypeScript 5.9+
+- **UI Library**: React 19.2+
+- **Styling**: Tailwind CSS 4.1+ with shadcn/ui components
+- **Agent SDK**: @langchain/langgraph-sdk
+- **State Management**: React Context (StreamProvider, ThreadProvider)
+- **Package Manager**: pnpm
+
+## Project Structure
+
+### Key Directories
+
+- [src/app](mdc:src/app) - Next.js app router pages and API routes
+  - [src/app/api](mdc:src/app/api) - API proxy for LangGraph communication
+  - [src/app/page.tsx](mdc:src/app/page.tsx) - Main chat interface
+  
+- [src/components](mdc:src/components) - React components
+  - [src/components/thread](mdc:src/components/thread) - Chat thread and message components
+  - [src/components/ui](mdc:src/components/ui) - Reusable UI components (shadcn/ui)
+  - [src/components/icons](mdc:src/components/icons) - Icon components
+
+- [src/providers](mdc:src/providers) - React Context providers
+  - [src/providers/Stream.tsx](mdc:src/providers/Stream.tsx) - LangGraph stream management
+  - [src/providers/Thread.tsx](mdc:src/providers/Thread.tsx) - Thread state management
+
+- [src/lib](mdc:src/lib) - Utility functions and helpers
+- [src/hooks](mdc:src/hooks) - Custom React hooks
+- [src/ui](mdc:src/ui) - Additional UI components and previews
+
+### Entry Points
+
+1. **Main Application**: [src/app/page.tsx](mdc:src/app/page.tsx)
+2. **API Passthrough**: [src/app/api/[..._path]/route.ts](mdc:src/app/api/[..._path]/route.ts)
+3. **Global Styles**: [src/app/globals.css](mdc:src/app/globals.css)
+
+## Architecture Patterns
+
+### Provider Hierarchy
+```tsx
+<ThreadProvider>          // Thread/conversation management
+  <StreamProvider>        // LangGraph streaming
+    <ArtifactProvider>    // Side panel artifacts
+      <Thread />          // Main chat interface
+    </ArtifactProvider>
+  </StreamProvider>
+</ThreadProvider>
+```
+
+### Component Organization
+- Keep components focused and single-purpose
+- Place shared components in [src/components/ui](mdc:src/components/ui)
+- Place feature-specific components in dedicated directories
+- Export components as named exports for better tree-shaking
+
+### State Management
+- Use React Context for global state (providers)
+- Use local state for component-specific state
+- Use custom hooks for reusable stateful logic
+- Access LangGraph stream via `useStreamContext()`
+
+### API Integration
+- LangGraph API communication happens through [src/providers/Stream.tsx](mdc:src/providers/Stream.tsx)
+- Use the API passthrough proxy for production deployments
+- Direct connection to LangGraph server for local development
+
+## Path Aliases
+- `@/*` - Maps to [src/*](mdc:src)
+- `@ui/*` - Maps to [ui/*](mdc:ui)
+
+## Important Notes
+- This app supports both local LangGraph servers and production deployments
+- Environment variables control connection settings (see [README.md](mdc:README.md))
+- Custom components can be rendered in chat messages
+- Artifacts are displayed in a side panel using the Artifact system

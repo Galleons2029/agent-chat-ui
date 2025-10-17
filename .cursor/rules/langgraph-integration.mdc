@@ -1,0 +1,294 @@
+---
+description: Guidelines for working with LangGraph SDK and agent integration
+---
+
+# LangGraph Integration Guide
+
+## Overview
+This application integrates with LangGraph servers to enable AI agent conversations. The integration is primarily handled through the LangGraph SDK and custom providers.
+
+## Core Integration Files
+
+- [src/providers/Stream.tsx](mdc:src/providers/Stream.tsx) - Stream management and connection
+- [src/providers/Thread.tsx](mdc:src/providers/Thread.tsx) - Thread/conversation management
+- [src/app/api/[..._path]/route.ts](mdc:src/app/api/[..._path]/route.ts) - API passthrough proxy
+
+## Connection Setup
+
+### Environment Variables
+```bash
+# Required for production
+NEXT_PUBLIC_API_URL="https://your-agent.langgraph.app"
+NEXT_PUBLIC_ASSISTANT_ID="agent"
+LANGSMITH_API_KEY="lsv2_..."  # Server-side only
+LANGGRAPH_API_URL="https://your-agent.langgraph.app"  # For API proxy
+```
+
+### Local Development
+```bash
+NEXT_PUBLIC_API_URL="http://localhost:2024"
+NEXT_PUBLIC_ASSISTANT_ID="agent"
+# No API key needed for local
+```
+
+## Stream Management
+
+### Using the Stream Context
+```typescript
+import { useStreamContext } from "@/providers/Stream";
+
+function Component() {
+  const thread = useStreamContext();
+  
+  // Access stream data
+  const messages = thread.messages;
+  const values = thread.values;
+  const interrupt = thread.interrupt;
+  const isLoading = thread.state === "inflight";
+  
+  // Send messages
+  const handleSend = (content: string) => {
+    thread.sendMessage(content);
+  };
+  
+  return <div>{/* Component UI */}</div>;
+}
+```
+
+### Stream State
+The stream has several states:
+- `"idle"` - Not active
+- `"inflight"` - Request in progress
+- `"done"` - Request complete
+- `"error"` - Request failed
+
+### Thread Operations
+```typescript
+const thread = useStreamContext();
+
+// Send a message
+thread.sendMessage("Hello");
+
+// Switch branches (time-travel)
+thread.setBranch(branchId);
+
+// Get message metadata
+const meta = thread.getMessagesMetadata(message);
+
+// Access state values
+const { messages, ui } = thread.values;
+```
+
+## Message Types
+
+### Message Structure
+```typescript
+import type { Message } from "@langchain/langgraph-sdk";
+
+interface BaseMessage {
+  id: string;
+  type: "human" | "ai" | "tool" | "system";
+  content: string | MessageContentComplex[];
+}
+
+interface AIMessage extends BaseMessage {
+  type: "ai";
+  tool_calls?: ToolCall[];
+  response_metadata?: Record<string, unknown>;
+}
+```
+
+### Tool Calls
+```typescript
+interface ToolCall {
+  name: string;
+  id: string;
+  args: Record<string, unknown>;
+  type: "tool_call";
+}
+```
+
+### Hiding Messages
+
+#### Prevent Live Streaming
+```python
+# Python backend example
+from langchain_anthropic import ChatAnthropic
+
+model = ChatAnthropic().with_config(
+    config={"tags": ["langsmith:nostream"]}
+)
+```
+
+#### Hide Messages Permanently
+```python
+# Python backend example
+result = model.invoke([messages])
+result.id = f"do-not-render-{result.id}"
+return {"messages": [result]}
+```
+
+## UI Messages
+
+### Custom UI Components
+The stream supports custom UI messages that can be sent from the backend:
+
+```typescript
+interface UIMessage {
+  id: string;
+  type: "ui";
+  metadata?: {
+    message_id?: string;
+    component_type?: string;
+  };
+  data: Record<string, unknown>;
+}
+```
+
+### Handling UI Messages
+```typescript
+import { isUIMessage, isRemoveUIMessage } from "@langchain/langgraph-sdk/react-ui";
+
+// In stream configuration
+onCustomEvent: (event, options) => {
+  if (isUIMessage(event) || isRemoveUIMessage(event)) {
+    options.mutate((prev) => {
+      const ui = uiMessageReducer(prev.ui ?? [], event);
+      return { ...prev, ui };
+    });
+  }
+}
+```
+
+## Interrupts
+
+### Agent Inbox Interrupts
+See [src/lib/agent-inbox-interrupt.ts](mdc:src/lib/agent-inbox-interrupt.ts)
+
+Structured interrupts for agent approvals:
+```typescript
+import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
+
+if (isAgentInboxInterruptSchema(interrupt.value)) {
+  // Render approval UI
+}
+```
+
+### Generic Interrupts
+See [src/components/thread/messages/generic-interrupt.tsx](mdc:src/components/thread/messages/generic-interrupt.tsx)
+
+Fallback for unstructured interrupt data.
+
+## Artifacts
+
+### Artifact Provider
+See [src/components/thread/artifact.tsx](mdc:src/components/thread/artifact.tsx)
+
+Artifacts are content displayed in a side panel:
+
+```typescript
+import { useArtifact } from "@/components/thread/artifact";
+
+function Component() {
+  const [Artifact, { open, setOpen, context, setContext }] = useArtifact();
+  
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>
+        Open Artifact
+      </button>
+      
+      <Artifact title="Artifact Title">
+        <div>Artifact content</div>
+      </Artifact>
+    </>
+  );
+}
+```
+
+## API Passthrough
+
+### Purpose
+The API passthrough proxy allows server-side authentication with LangGraph Cloud:
+- Hides LangSmith API key from client
+- Enables custom authentication
+- Supports all LangGraph endpoints
+
+### Configuration
+Uses [langgraph-nextjs-api-passthrough](https://www.npmjs.com/package/langgraph-nextjs-api-passthrough) package
+
+The proxy is automatically configured in [src/app/api/[..._path]/route.ts](mdc:src/app/api/[..._path]/route.ts)
+
+## Error Handling
+
+### Connection Errors
+```typescript
+// Stream provider checks connection on mount
+useEffect(() => {
+  checkGraphStatus(apiUrl, apiKey).then((ok) => {
+    if (!ok) {
+      toast.error("Failed to connect to LangGraph server");
+    }
+  });
+}, [apiKey, apiUrl]);
+```
+
+### Message Errors
+- Handle partial JSON parsing for streaming tool calls
+- Provide fallbacks for malformed content
+- Display user-friendly error messages
+
+## Thread Management
+
+### Thread State
+```typescript
+import { useThreads } from "@/providers/Thread";
+
+function Component() {
+  const { threads, setThreads, getThreads } = useThreads();
+  
+  // List all threads
+  const allThreads = threads;
+  
+  // Refresh threads
+  getThreads().then(setThreads);
+}
+```
+
+### Thread History
+Access historical state through message metadata:
+```typescript
+const meta = thread.getMessagesMetadata(message);
+const checkpoint = meta?.firstSeenState?.parent_checkpoint;
+```
+
+## Multimodal Content
+
+### File Uploads
+See [src/hooks/use-file-upload.tsx](mdc:src/hooks/use-file-upload.tsx)
+
+Supports uploading images and files with messages:
+```typescript
+import { useFileUpload } from "@/hooks/use-file-upload";
+
+function Component() {
+  const { files, addFiles, removeFile } = useFileUpload();
+  
+  // Files are automatically included in message content
+}
+```
+
+### Content Preview
+See [src/components/thread/MultimodalPreview.tsx](mdc:src/components/thread/MultimodalPreview.tsx)
+
+Displays images and files in message content.
+
+## Best Practices
+
+1. **Always use useStreamContext**: Access stream data through the context hook
+2. **Handle loading states**: Check `thread.state` before rendering
+3. **Error boundaries**: Wrap components with error boundaries
+4. **Type safety**: Use proper types from @langchain/langgraph-sdk
+5. **Cleanup**: Unsubscribe from streams on unmount
+6. **Optimistic updates**: Update UI immediately, handle errors gracefully
+7. **Message filtering**: Filter messages by ID prefix (e.g., "do-not-render-")

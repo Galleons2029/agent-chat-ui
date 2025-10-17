@@ -1,0 +1,178 @@
+---
+globs: *.ts,*.tsx
+---
+
+# TypeScript and React Patterns
+
+## TypeScript Best Practices
+
+### Type Safety
+- Always enable strict mode (`"strict": true` in tsconfig)
+- Avoid `any` type - use `unknown` for truly unknown types
+- Use type inference where possible, explicit types for public APIs
+- Define return types for functions to catch errors early
+
+### Type Definitions
+```typescript
+// Prefer interfaces for objects
+interface UserProps {
+  name: string;
+  email: string;
+}
+
+// Use type for unions, intersections, or mapped types
+type Status = "idle" | "loading" | "error";
+type ReadonlyUser = Readonly<UserProps>;
+```
+
+### Generics
+```typescript
+// Use generics for reusable type-safe code
+function identity<T>(value: T): T {
+  return value;
+}
+```
+
+## React Patterns
+
+### Component Declaration
+- Use function components with TypeScript
+- Declare return type as `React.ReactNode` for flexibility
+- Use named exports for better tree-shaking
+
+```typescript
+export function ComponentName(): React.ReactNode {
+  return <div>Content</div>;
+}
+```
+
+### Props Definition
+```typescript
+interface ComponentProps {
+  title: string;
+  isOpen?: boolean;  // Optional props with ?
+  onClose: () => void;
+  children?: React.ReactNode;
+}
+
+export function Component({
+  title,
+  isOpen = false,  // Default values
+  onClose,
+  children,
+}: ComponentProps): React.ReactNode {
+  // Component logic
+}
+```
+
+### Hooks Usage
+
+#### useState
+```typescript
+// Explicit type when initial value is null/undefined
+const [user, setUser] = useState<User | null>(null);
+
+// Type inference when initial value is provided
+const [count, setCount] = useState(0);
+```
+
+#### useEffect
+```typescript
+useEffect(() => {
+  // Effect logic
+  return () => {
+    // Cleanup
+  };
+}, [dependencies]);
+```
+
+#### Custom Hooks
+```typescript
+// Custom hooks start with "use" prefix
+export function useCustomHook<T>(initialValue: T) {
+  const [value, setValue] = useState<T>(initialValue);
+  
+  // Hook logic
+  
+  return { value, setValue };
+}
+```
+
+### Context Patterns
+```typescript
+// Create typed context
+type ContextType = {
+  state: State;
+  dispatch: Dispatch<Action>;
+};
+
+const Context = createContext<ContextType | undefined>(undefined);
+
+// Custom hook for context
+export function useMyContext(): ContextType {
+  const context = useContext(Context);
+  if (!context) {
+    throw new Error("useMyContext must be used within Provider");
+  }
+  return context;
+}
+```
+
+## LangGraph SDK Integration
+
+### Stream Context
+```typescript
+import { useStreamContext } from "@/providers/Stream";
+
+// Access LangGraph stream
+const thread = useStreamContext();
+const { messages, values, interrupt } = thread;
+```
+
+### Message Types
+```typescript
+import type { Message, AIMessage } from "@langchain/langgraph-sdk";
+
+// Work with strongly typed messages
+function processMessage(message: Message) {
+  if (message.type === "ai") {
+    const aiMessage = message as AIMessage;
+    // Access AI-specific properties
+  }
+}
+```
+
+## Async/Await
+- Always use async/await over Promise chains
+- Handle errors with try/catch blocks
+- Use Promise.all() for parallel operations
+
+```typescript
+async function fetchData() {
+  try {
+    const result = await apiCall();
+    return result;
+  } catch (error) {
+    console.error("Failed to fetch:", error);
+    throw error;
+  }
+}
+```
+
+## Error Handling
+- Throw typed errors when possible
+- Use error boundaries for React component errors
+- Display user-friendly error messages
+- Log errors for debugging
+
+## Performance
+- Use React.memo() for expensive pure components
+- Use useMemo() for expensive computations
+- Use useCallback() for function props to prevent re-renders
+- Lazy load components with React.lazy() and Suspense
+
+## Code Organization
+- One component per file
+- Group related types at the top of the file
+- Order: imports → types → component → exports
+- Keep files under 300 lines when possible

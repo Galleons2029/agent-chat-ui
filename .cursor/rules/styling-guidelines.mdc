@@ -1,0 +1,328 @@
+---
+globs: *.tsx,*.css,tailwind.config.js,src/app/globals.css
+---
+
+# Styling and UI Guidelines
+
+## Tailwind CSS
+
+### Configuration
+See [tailwind.config.js](mdc:tailwind.config.js) for theme configuration.
+
+### Color System
+Use CSS variables defined in [src/app/globals.css](mdc:src/app/globals.css):
+
+#### Semantic Colors
+```typescript
+// Background colors
+<div className="bg-background text-foreground" />
+<div className="bg-muted text-muted-foreground" />
+<div className="bg-card text-card-foreground" />
+
+// Accent colors
+<div className="bg-primary text-primary-foreground" />
+<div className="bg-secondary text-secondary-foreground" />
+<div className="bg-accent text-accent-foreground" />
+<div className="bg-destructive text-destructive-foreground" />
+
+// Borders and inputs
+<div className="border-border" />
+<input className="border-input ring-ring" />
+```
+
+#### Chart Colors
+```typescript
+// For chart components
+<div className="text-chart-1" />
+<div className="text-chart-2" />
+<div className="text-chart-3" />
+<div className="text-chart-4" />
+<div className="text-chart-5" />
+```
+
+### Dark Mode
+Dark mode is handled via the `class` strategy:
+```typescript
+// The theme is applied to the <html> element
+<html className="dark">
+```
+
+### Utility Classes
+
+#### Layout
+```typescript
+// Flexbox
+<div className="flex items-center justify-between gap-4" />
+
+// Grid
+<div className="grid grid-cols-2 gap-4" />
+
+// Spacing
+<div className="p-4 px-6 py-2 m-4 mx-auto" />
+```
+
+#### Sizing
+```typescript
+// Width/Height
+<div className="w-full h-screen max-w-3xl" />
+
+// Min/Max
+<div className="min-h-screen max-h-96" />
+```
+
+#### Typography
+```typescript
+// Text sizing
+<p className="text-sm text-base text-lg text-xl text-2xl" />
+
+// Font weight
+<span className="font-normal font-medium font-semibold font-bold" />
+
+// Text color
+<p className="text-foreground text-muted-foreground" />
+
+// Line height
+<p className="leading-tight leading-normal leading-relaxed" />
+```
+
+#### Border Radius
+Uses CSS variables:
+```typescript
+<div className="rounded-sm" />  // calc(var(--radius) - 4px)
+<div className="rounded-md" />  // calc(var(--radius) - 2px)
+<div className="rounded-lg" />  // var(--radius)
+<div className="rounded-full" />
+```
+
+### Responsive Design
+Mobile-first approach:
+```typescript
+<div className="
+  w-full           /* Mobile */
+  md:w-1/2         /* Tablet (768px+) */
+  lg:w-1/3         /* Desktop (1024px+) */
+  xl:w-1/4         /* Large desktop (1280px+) */
+" />
+```
+
+### Animations
+
+#### Tailwind Animate
+```typescript
+// Spin
+<div className="animate-spin" />
+
+// Pulse
+<div className="animate-pulse" />
+
+// Bounce
+<div className="animate-bounce" />
+```
+
+#### Framer Motion
+For complex animations:
+```typescript
+import { motion } from "framer-motion";
+
+<motion.div
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -20 }}
+  transition={{ duration: 0.3 }}
+>
+  Content
+</motion.div>
+```
+
+### Custom Utilities
+
+#### Scrollbar Styling
+```typescript
+// Pretty scrollbars (from tailwind-scrollbar plugin)
+<div className="scrollbar-pretty overflow-y-auto" />
+```
+
+#### Conditional Classes
+Use the `cn()` utility from [src/lib/utils.ts](mdc:src/lib/utils.ts):
+```typescript
+import { cn } from "@/lib/utils";
+
+<div className={cn(
+  "base-class",
+  isActive && "active-class",
+  error && "error-class",
+  className  // Allow prop override
+)} />
+```
+
+## Component Styling Patterns
+
+### shadcn/ui Pattern
+Components use class-variance-authority for variants:
+```typescript
+import { cva, type VariantProps } from "class-variance-authority";
+
+const buttonVariants = cva(
+  "base-classes",
+  {
+    variants: {
+      variant: {
+        default: "default-classes",
+        outline: "outline-classes",
+      },
+      size: {
+        sm: "small-classes",
+        lg: "large-classes",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "sm",
+    },
+  }
+);
+
+interface ButtonProps extends VariantProps<typeof buttonVariants> {
+  // Additional props
+}
+```
+
+### Hover and Focus States
+```typescript
+<button className="
+  hover:bg-accent
+  focus:ring-2 focus:ring-ring
+  focus-visible:outline-none
+  transition-colors
+" />
+```
+
+### Group Hover
+```typescript
+<div className="group">
+  <button className="opacity-0 group-hover:opacity-100" />
+</div>
+```
+
+### Disabled States
+```typescript
+<button className="
+  disabled:opacity-50
+  disabled:cursor-not-allowed
+  disabled:pointer-events-none
+" />
+```
+
+## Layout Patterns
+
+### Container
+```typescript
+<div className="container mx-auto px-4 max-w-7xl" />
+```
+
+### Card Layout
+```typescript
+<div className="rounded-lg border bg-card p-6 shadow-sm">
+  <h2 className="text-lg font-semibold">Title</h2>
+  <p className="text-muted-foreground">Description</p>
+</div>
+```
+
+### Chat Interface Layout
+```typescript
+<div className="flex min-h-screen flex-col">
+  <header className="border-b" />
+  <main className="flex-1 overflow-y-auto" />
+  <footer className="border-t" />
+</div>
+```
+
+## CSS Modules (When Needed)
+
+For component-specific styles that can't be expressed with Tailwind:
+
+```css
+/* component.module.css */
+.wrapper {
+  /* Custom styles */
+}
+
+.wrapper :global(.markdown) {
+  /* Global selectors */
+}
+```
+
+```typescript
+import styles from "./component.module.css";
+
+<div className={styles.wrapper} />
+```
+
+## Markdown Styling
+
+See [src/components/thread/markdown-styles.css](mdc:src/components/thread/markdown-styles.css) for markdown-specific styles.
+
+Key classes:
+- `.markdown` - Base markdown container
+- `.markdown h1, h2, h3` - Heading styles
+- `.markdown code` - Inline code
+- `.markdown pre` - Code blocks
+- `.markdown table` - Table styles
+
+## Icon Usage
+
+### Lucide React
+```typescript
+import { Icon } from "lucide-react";
+
+<Icon className="h-4 w-4" />
+<Icon className="h-5 w-5 text-muted-foreground" />
+```
+
+### Custom Icons
+See [src/components/icons](mdc:src/components/icons) for custom SVG icons.
+
+## Accessibility
+
+### Focus Indicators
+```typescript
+<button className="
+  focus-visible:outline-none
+  focus-visible:ring-2
+  focus-visible:ring-ring
+  focus-visible:ring-offset-2
+" />
+```
+
+### Screen Reader Only
+```typescript
+<span className="sr-only">Screen reader text</span>
+```
+
+### Color Contrast
+- Use semantic color variables for WCAG compliance
+- Test in both light and dark modes
+- Ensure sufficient contrast for text and interactive elements
+
+## Performance
+
+### CSS Optimization
+- Tailwind automatically purges unused styles
+- Use `@apply` sparingly in custom CSS
+- Prefer utility classes over custom CSS
+
+### Animation Performance
+- Use `transform` and `opacity` for animations
+- Avoid animating `width`, `height`, `top`, `left`
+- Use `will-change` for complex animations
+
+## Best Practices
+
+1. **Mobile-first**: Start with mobile styles, add responsive variants
+2. **Semantic colors**: Use theme variables, not hardcoded colors
+3. **Consistent spacing**: Use spacing scale (4, 8, 12, 16, 20, 24, etc.)
+4. **Reuse components**: Use shadcn/ui components when possible
+5. **Dark mode**: Always test both light and dark themes
+6. **Accessibility**: Include proper ARIA labels and focus states
+7. **Performance**: Keep specificity low, avoid deep nesting
+8. **Documentation**: Comment complex styling logic

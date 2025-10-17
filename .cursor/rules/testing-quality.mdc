@@ -1,0 +1,490 @@
+---
+description: Testing strategies and quality assurance guidelines
+---
+
+# Testing and Quality Assurance
+
+## Overview
+This project emphasizes code quality through TypeScript strict mode, ESLint, Prettier, and manual testing. While automated tests are not yet implemented, the following guidelines ensure code quality.
+
+## Code Quality Tools
+
+### TypeScript
+Configuration: [tsconfig.json](mdc:tsconfig.json)
+
+**Strict Mode Checks:**
+- No implicit any
+- Strict null checks
+- Strict function types
+- Strict property initialization
+
+**Best Practices:**
+```typescript
+// ✅ Good: Explicit types for public APIs
+export function processMessage(message: Message): ProcessedMessage {
+  // Implementation
+}
+
+// ❌ Bad: Implicit any
+export function processMessage(message) {
+  // Implementation
+}
+
+// ✅ Good: Handle null/undefined
+function getName(user: User | null): string {
+  return user?.name ?? "Anonymous";
+}
+
+// ❌ Bad: Potential null reference
+function getName(user: User | null): string {
+  return user.name;  // Error: user might be null
+}
+```
+
+### ESLint
+Configuration: [eslint.config.js](mdc:eslint.config.js)
+
+**Running Linter:**
+```bash
+# Check for issues
+pnpm lint
+
+# Auto-fix issues
+pnpm lint:fix
+```
+
+**Common Rules:**
+- No unused variables
+- No console.log in production code (use console.error for errors)
+- Proper React Hooks dependencies
+- Consistent import order
+
+**Pre-commit Check:**
+```bash
+# Always run before committing
+pnpm lint:fix
+pnpm format
+```
+
+### Prettier
+Configuration: [prettier.config.js](mdc:prettier.config.js)
+
+**Formatting:**
+```bash
+# Check formatting
+pnpm format:check
+
+# Auto-format
+pnpm format
+```
+
+**Settings:**
+- 80 character line width (flexible)
+- 2 spaces indentation
+- Single quotes
+- Trailing commas
+- Tailwind class sorting
+
+## Manual Testing
+
+### Test Components Page
+Location: [src/app/test-components/page.tsx](mdc:src/app/test-components/page.tsx)
+
+Access at: `http://localhost:3000/test-components`
+
+**Use Cases:**
+- Test new custom components
+- Verify chart rendering
+- Test Mermaid diagrams
+- Validate UI components
+- Check dark mode compatibility
+
+### Testing Checklist
+
+#### Component Testing
+- [ ] Renders without errors
+- [ ] Props are properly typed
+- [ ] Handles loading states
+- [ ] Handles error states
+- [ ] Handles empty states
+- [ ] Responsive on mobile
+- [ ] Works in dark mode
+- [ ] Accessible (keyboard navigation)
+
+#### Feature Testing
+- [ ] Core functionality works
+- [ ] Edge cases handled
+- [ ] Error messages are clear
+- [ ] Loading indicators present
+- [ ] Success feedback provided
+- [ ] State updates correctly
+
+#### Integration Testing
+- [ ] LangGraph connection works
+- [ ] Message streaming works
+- [ ] File uploads work
+- [ ] Custom components render
+- [ ] Artifacts display correctly
+- [ ] Thread switching works
+
+#### Cross-browser Testing
+- [ ] Chrome/Edge (Chromium)
+- [ ] Firefox
+- [ ] Safari (if on macOS)
+- [ ] Mobile browsers
+
+### Testing Workflow
+
+1. **Local Development**
+```bash
+# Start dev server
+pnpm dev
+
+# Open in browser
+open http://localhost:3000
+```
+
+2. **Test New Features**
+- Create test scenarios
+- Test happy path
+- Test error conditions
+- Test edge cases
+
+3. **Visual Inspection**
+- Check layout and spacing
+- Verify colors and themes
+- Test animations
+- Check loading states
+
+4. **Console Inspection**
+- No console errors
+- No console warnings
+- No React warnings
+- Proper error handling
+
+## Code Review Guidelines
+
+### What to Check
+
+#### TypeScript
+- [ ] No `any` types (use `unknown` if needed)
+- [ ] Proper type definitions for props
+- [ ] Return types on functions
+- [ ] No type assertions (unless necessary)
+- [ ] Interfaces for objects, types for unions
+
+#### React
+- [ ] Functional components only
+- [ ] Proper hooks usage
+- [ ] No useEffect dependency warnings
+- [ ] Components are composable
+- [ ] Props are immutable
+
+#### Styling
+- [ ] Uses Tailwind utilities
+- [ ] Responsive design
+- [ ] Dark mode support
+- [ ] Consistent spacing
+- [ ] Accessible (ARIA labels, focus states)
+
+#### Performance
+- [ ] No unnecessary re-renders
+- [ ] Proper memoization (if needed)
+- [ ] Lazy loading for heavy components
+- [ ] Optimized images
+- [ ] No memory leaks
+
+#### Security
+- [ ] No hardcoded secrets
+- [ ] Proper input sanitization
+- [ ] XSS prevention
+- [ ] API key handling
+- [ ] CORS configuration
+
+## Common Issues and Solutions
+
+### Type Errors
+
+**Issue: Property doesn't exist on type**
+```typescript
+// ❌ Problem
+const message: Message = {...};
+console.log(message.tool_calls);  // Error if not AI message
+
+// ✅ Solution: Type guard
+function isAIMessage(msg: Message): msg is AIMessage {
+  return msg.type === "ai";
+}
+
+if (isAIMessage(message)) {
+  console.log(message.tool_calls);  // OK
+}
+```
+
+**Issue: Object is possibly null/undefined**
+```typescript
+// ❌ Problem
+const name = user.name;  // Error if user can be null
+
+// ✅ Solution: Optional chaining
+const name = user?.name ?? "Default";
+```
+
+### React Warnings
+
+**Issue: Missing key prop**
+```typescript
+// ❌ Problem
+{items.map(item => <div>{item}</div>)}
+
+// ✅ Solution: Add unique key
+{items.map(item => <div key={item.id}>{item}</div>)}
+```
+
+**Issue: useEffect dependency warning**
+```typescript
+// ❌ Problem
+useEffect(() => {
+  fetchData(id);
+}, []);  // Missing 'id' dependency
+
+// ✅ Solution: Include all dependencies
+useEffect(() => {
+  fetchData(id);
+}, [id]);
+
+// ✅ Alternative: Use useCallback
+const fetch = useCallback(() => {
+  fetchData(id);
+}, [id]);
+
+useEffect(() => {
+  fetch();
+}, [fetch]);
+```
+
+### Performance Issues
+
+**Issue: Component re-renders too often**
+```typescript
+// ❌ Problem: New function on every render
+function Parent() {
+  const handleClick = () => console.log("clicked");
+  return <Child onClick={handleClick} />;
+}
+
+// ✅ Solution: useCallback
+function Parent() {
+  const handleClick = useCallback(() => {
+    console.log("clicked");
+  }, []);
+  return <Child onClick={handleClick} />;
+}
+
+// ✅ Solution: Memoize child
+const Child = React.memo(({ onClick }) => {
+  return <button onClick={onClick}>Click</button>;
+});
+```
+
+**Issue: Expensive computation on every render**
+```typescript
+// ❌ Problem
+function Component({ data }) {
+  const processed = processData(data);  // Runs every render
+  return <div>{processed}</div>;
+}
+
+// ✅ Solution: useMemo
+function Component({ data }) {
+  const processed = useMemo(() => processData(data), [data]);
+  return <div>{processed}</div>;
+}
+```
+
+## Accessibility Testing
+
+### Keyboard Navigation
+- [ ] Tab through all interactive elements
+- [ ] Enter/Space activates buttons
+- [ ] Escape closes dialogs/modals
+- [ ] Arrow keys navigate lists/menus
+
+### Screen Reader Testing
+```typescript
+// ✅ Good: Proper ARIA labels
+<button aria-label="Close dialog" onClick={onClose}>
+  <X />
+</button>
+
+// ✅ Good: Semantic HTML
+<nav aria-label="Main navigation">
+  <ul>
+    <li><a href="/">Home</a></li>
+  </ul>
+</nav>
+
+// ✅ Good: Focus management
+useEffect(() => {
+  if (isOpen) {
+    dialogRef.current?.focus();
+  }
+}, [isOpen]);
+```
+
+### Color Contrast
+- Use browser DevTools to check contrast ratios
+- Test in both light and dark modes
+- Ensure text is readable
+- Don't rely on color alone for information
+
+## Build Validation
+
+### Production Build
+```bash
+# Build for production
+pnpm build
+
+# Check output
+# ✅ No TypeScript errors
+# ✅ No ESLint errors
+# ✅ Bundle size is reasonable
+# ✅ No warnings in console
+```
+
+### Build Output
+```
+Route (app)                              Size     First Load JS
+┌ ○ /                                    X kB           Y kB
+├ ○ /api/[..._path]                      Z kB           W kB
+└ ○ /test-components                     Q kB           R kB
+```
+
+Monitor bundle sizes:
+- Main bundle should be < 300 kB
+- Shared chunks should be < 150 kB
+- Route chunks should be < 50 kB
+
+## Error Handling
+
+### Error Boundaries
+```typescript
+// Create error boundary for sections
+class ErrorBoundary extends React.Component {
+  state = { hasError: false };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div>Something went wrong</div>;
+    }
+    return this.props.children;
+  }
+}
+```
+
+### Error Display
+```typescript
+// ✅ User-friendly error messages
+try {
+  await sendMessage(content);
+} catch (error) {
+  toast.error("Failed to send message", {
+    description: "Please check your connection and try again",
+  });
+  console.error("Send message error:", error);
+}
+```
+
+## Debugging Tools
+
+### React DevTools
+- Component tree inspection
+- Props and state inspection
+- Profiler for performance
+- Hook inspection
+
+### Browser DevTools
+- Console for logs and errors
+- Network tab for API calls
+- Performance tab for profiling
+- Application tab for storage
+
+### Next.js DevTools
+- Build errors in browser overlay
+- Fast Refresh for instant updates
+- Source maps for debugging
+
+## Quality Metrics
+
+### Code Quality
+- Zero TypeScript errors
+- Zero ESLint errors
+- 100% formatted with Prettier
+- No console.log in production code
+
+### Performance
+- First Contentful Paint < 1.5s
+- Time to Interactive < 3.5s
+- Cumulative Layout Shift < 0.1
+- No unnecessary re-renders
+
+### Accessibility
+- Keyboard navigable
+- Screen reader compatible
+- Sufficient color contrast
+- Proper ARIA labels
+
+## Future Testing
+
+### Unit Tests (Planned)
+- Test utilities and hooks
+- Test component logic
+- Test data transformations
+- Use Vitest or Jest
+
+### Integration Tests (Planned)
+- Test user flows
+- Test API integration
+- Test state management
+- Use Playwright or Cypress
+
+### Visual Regression Tests (Planned)
+- Screenshot comparisons
+- Component visual states
+- Responsive layouts
+- Use Percy or Chromatic
+
+## Resources
+
+### Testing Tools
+- [React Testing Library](https://testing-library.com/react)
+- [Vitest](https://vitest.dev)
+- [Playwright](https://playwright.dev)
+- [Cypress](https://www.cypress.io)
+
+### Quality Tools
+- [TypeScript](https://www.typescriptlang.org/docs)
+- [ESLint](https://eslint.org)
+- [Prettier](https://prettier.io)
+- [React DevTools](https://react.dev/learn/react-developer-tools)
+
+## Best Practices Summary
+
+1. **Always run linter and formatter before committing**
+2. **Test in both light and dark modes**
+3. **Check console for errors and warnings**
+4. **Test on mobile and desktop**
+5. **Use TypeScript strict mode**
+6. **Handle all error cases**
+7. **Provide loading states**
+8. **Make components accessible**
+9. **Review your own code first**
+10. **Document complex logic**

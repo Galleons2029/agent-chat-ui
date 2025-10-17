@@ -1,0 +1,296 @@
+---
+alwaysApply: true
+---
+
+# Git Commit Standards
+
+## Commit Message Format
+
+This project follows the Conventional Commits specification with emoji prefixes:
+
+```
+<emoji> <type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Required Elements
+- **Emoji**: Visual indicator of change type (required)
+- **Type**: Conventional commit type (required)
+- **Scope**: Area of codebase affected (optional but recommended)
+- **Subject**: Short description in imperative mood (required, max 72 chars)
+- **Body**: Detailed explanation (optional)
+- **Footer**: Breaking changes, issue references (optional)
+
+## Commit Types and Emojis
+
+| Type | Emoji | Description | Example |
+|------|-------|-------------|---------|
+| `feat` | ✨ | New feature | ✨ feat(ui): add dark mode toggle |
+| `fix` | 🐛 | Bug fix | 🐛 fix(stream): prevent null pointer error |
+| `docs` | 📚 | Documentation | 📚 docs: update setup instructions |
+| `style` | 💄 | Code style/formatting | 💄 style(components): format with prettier |
+| `refactor` | ♻️ | Code refactoring | ♻️ refactor(hooks): simplify useStream logic |
+| `perf` | ⚡ | Performance improvement | ⚡ perf(markdown): optimize rendering |
+| `test` | 🧪 | Tests | 🧪 test(api): add stream integration tests |
+| `build` | 📦 | Build system | 📦 build: update next.js to 15.5 |
+| `ci` | 👷 | CI/CD | 👷 ci: add deployment workflow |
+| `chore` | 🔧 | Maintenance | 🔧 chore: update dependencies |
+| `revert` | ⏪ | Revert changes | ⏪ revert: rollback stream changes |
+
+### Additional Emojis
+
+#### Features and Enhancements
+- 🎨 Improve UI/UX
+- 🚀 Deploy or release
+- 🔥 Remove code or files
+- ✅ Add/update tests
+- 🔒 Fix security issues
+
+#### Code Quality
+- 🧹 Clean up code
+- 📝 Add/update comments
+- 🏗️ Architectural changes
+- 🔨 Refactor code
+
+#### Dependencies and Configuration
+- ⬆️ Upgrade dependencies
+- ⬇️ Downgrade dependencies
+- ➕ Add dependency
+- ➖ Remove dependency
+- ⚙️ Change configuration
+
+#### LangGraph Specific
+- 🤖 AI/LLM features
+- 💬 Chat/messaging features
+- 🔄 Stream handling
+- 📡 API integration
+- 🎭 Agent behavior
+
+## Scope Guidelines
+
+Common scopes for this project:
+
+### Core Application
+- `app` - Next.js app router and pages
+- `api` - API routes and proxy
+- `providers` - React context providers
+- `hooks` - Custom React hooks
+
+### UI Components
+- `components` - General components
+- `ui` - shadcn/ui components
+- `thread` - Chat thread components
+- `messages` - Message components
+- `artifacts` - Artifact system
+
+### Features
+- `stream` - LangGraph streaming
+- `chat` - Chat interface
+- `markdown` - Markdown rendering
+- `charts` - Chart components
+- `mermaid` - Mermaid diagrams
+- `custom-components` - Custom component system
+
+### Infrastructure
+- `config` - Configuration files
+- `build` - Build process
+- `deps` - Dependencies
+- `docker` - Docker setup
+- `ci` - CI/CD
+
+### Documentation
+- `docs` - Documentation files
+- `readme` - README updates
+- `examples` - Example code
+
+## Subject Guidelines
+
+- Use imperative mood: "add" not "added" or "adds"
+- Don't capitalize first letter
+- No period at the end
+- Be concise but descriptive
+- Maximum 72 characters
+
+### Good Examples
+```
+✨ feat(chat): add file upload support
+🐛 fix(stream): handle connection timeout
+📚 docs(api): document authentication flow
+♻️ refactor(components): extract message logic
+⚡ perf(markdown): lazy load syntax highlighter
+```
+
+### Bad Examples
+```
+# Missing emoji
+feat(chat): Added file upload  ❌
+
+# Wrong tense
+✨ feat(chat): Added file upload  ❌
+
+# Too vague
+🐛 fix: bug fix  ❌
+
+# Too long
+✨ feat(ui): add comprehensive support for uploading multiple files with preview and progress tracking  ❌
+
+# Capitalized
+✨ feat(chat): Add file upload  ❌
+
+# Has period
+✨ feat(chat): add file upload.  ❌
+```
+
+## Body Guidelines
+
+- Separate from subject with blank line
+- Wrap at 100 characters per line
+- Explain **what** and **why**, not how
+- Use bullet points for multiple changes
+- Use present tense
+
+### Example
+```
+✨ feat(custom-components): add chart component support
+
+- Add ECharts integration for interactive charts
+- Support line, bar, pie, and scatter chart types
+- Include responsive design and dark mode support
+- Add type-safe configuration interface
+
+This enables agents to send chart data that will be
+rendered as interactive visualizations in the chat.
+```
+
+## Footer Guidelines
+
+### Breaking Changes
+```
+BREAKING CHANGE: rename useStream to useStreamContext
+
+This change requires updating all imports:
+- import { useStream } becomes import { useStreamContext }
+```
+
+### Issue References
+```
+Closes: #123
+Fixes: #456
+Refs: #789
+```
+
+### Multiple Footers
+```
+BREAKING CHANGE: update message format
+
+Closes: #123
+Refs: #456
+```
+
+## Examples by Category
+
+### Feature Development
+```
+✨ feat(artifacts): add side panel artifact support
+
+🎨 feat(ui): implement dark mode with theme switcher
+
+🤖 feat(agent): add support for tool approval interrupts
+
+💬 feat(chat): support multimodal content with images
+```
+
+### Bug Fixes
+```
+🐛 fix(stream): prevent duplicate message rendering
+
+🐛 fix(markdown): escape HTML in code blocks
+
+🔒 fix(auth): validate API key before connection
+```
+
+### Performance
+```
+⚡ perf(components): memoize expensive message renders
+
+⚡ perf(stream): reduce re-renders with useMemo
+
+🚀 perf(build): enable React compiler optimization
+```
+
+### Refactoring
+```
+♻️ refactor(providers): extract thread logic to hook
+
+♻️ refactor(messages): unify AI and human message components
+
+🧹 refactor(utils): remove unused helper functions
+```
+
+### Dependencies
+```
+⬆️ build(deps): upgrade next.js to 15.5.6
+
+➕ build(deps): add mermaid for diagram support
+
+📦 build: update all dependencies to latest
+```
+
+### Documentation
+```
+📚 docs: add LangGraph integration guide
+
+📚 docs(readme): update production deployment steps
+
+📝 docs(components): add JSDoc comments to hooks
+```
+
+## Automated Validation
+
+### Pre-commit Hook
+Create `.git/hooks/commit-msg`:
+
+```bash
+#!/usr/bin/env bash
+msg_file="$1"
+pattern='^(✨|🐛|📚|💄|♻️|⚡|🧪|📦|👷|🔧|⏪|🎨|🚀|🔥|✅|🔒|🧹|📝|🏗️|🔨|⬆️|⬇️|➕|➖|⚙️|🤖|💬|🔄|📡|🎭)\s+(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9\-,]+\))?(!)?:\s.{1,72}$'
+
+if ! grep -Eq "$pattern" "$msg_file"; then
+  echo "❌ Invalid commit message format"
+  echo "See .cursor/rules/commit-standards.mdc for guidelines"
+  exit 1
+fi
+```
+
+Make it executable:
+```bash
+chmod +x .git/hooks/commit-msg
+```
+
+## Best Practices
+
+1. **Atomic commits**: One logical change per commit
+2. **Test before commit**: Ensure code builds and tests pass
+3. **Review your diff**: Check what you're actually committing
+4. **Write for others**: Assume readers don't have context
+5. **Link issues**: Reference relevant issues and PRs
+6. **Breaking changes**: Always document in footer
+7. **Conventional format**: Follow the format strictly
+8. **Meaningful scopes**: Use scopes that match the codebase structure
+
+## Multi-language Considerations
+
+- **Subject line**: English (for global collaboration)
+- **Body**: English or Chinese (team preference)
+- **Code comments**: Match language of surrounding code
+- **Documentation**: Primary language English, translations welcome
+
+## Commit Frequency
+
+- Commit often during development
+- Squash/rebase before merging to main
+- Keep main branch history clean and linear
+- Each merged commit should be functional

@@ -1,0 +1,262 @@
+---
+alwaysApply: true
+---
+
+# Cursor Rules Overview
+
+This directory contains Cursor rules that guide AI-assisted development for the Agent Chat UI project. These rules help maintain consistency, quality, and best practices across the codebase.
+
+## Available Rules
+
+### 🏗️ Architecture and Structure
+**[project-architecture.mdc](mdc:project-architecture.mdc)** - Always applied
+- Project overview and core technologies
+- Directory structure and key files
+- Provider hierarchy and patterns
+- Path aliases and configuration
+
+### 📝 Code Standards
+**[typescript-react-patterns.mdc](mdc:typescript-react-patterns.mdc)** - Applied to `.ts` and `.tsx` files
+- TypeScript best practices and type safety
+- React component patterns
+- Hooks usage guidelines
+- LangGraph SDK integration
+
+### 🎨 Component Development
+**[component-development.mdc](mdc:component-development.mdc)** - Applied to `src/components/**`
+- Component structure and organization
+- UI component usage (shadcn/ui)
+- Thread and message components
+- Custom component system
+- Markdown and Mermaid rendering
+
+### 🤖 LangGraph Integration
+**[langgraph-integration.mdc](mdc:langgraph-integration.mdc)** - Manual (by description)
+- LangGraph SDK usage patterns
+- Stream management and context
+- Message types and handling
+- Interrupts and artifacts
+- API passthrough configuration
+
+### 💄 Styling Guidelines
+**[styling-guidelines.mdc](mdc:styling-guidelines.mdc)** - Applied to `.tsx`, `.css`, and config files
+- Tailwind CSS utilities and patterns
+- Color system and theming
+- Responsive design
+- Animations and transitions
+- Accessibility standards
+
+### 📦 Commit Standards
+**[commit-standards.mdc](mdc:commit-standards.mdc)** - Always applied
+- Conventional Commits with emojis
+- Commit types and scopes
+- Message format and examples
+- Breaking changes and footers
+
+### 🔧 Development Workflow
+**[development-workflow.mdc](mdc:development-workflow.mdc)** - Manual (by description)
+- Getting started guide
+- Available scripts
+- Development patterns
+- Debugging tips
+- Git workflow
+- Deployment options
+
+### 🧪 Testing & Quality
+**[testing-quality.mdc](mdc:testing-quality.mdc)** - Manual (by description)
+- Code quality tools (TypeScript, ESLint, Prettier)
+- Manual testing strategies
+- Code review guidelines
+- Common issues and solutions
+- Accessibility testing
+
+## Rule Application
+
+### Automatic Rules
+Rules with `alwaysApply: true` or `globs` are automatically applied:
+- **project-architecture.mdc** - Always active
+- **commit-standards.mdc** - Always active
+- **typescript-react-patterns.mdc** - Active for TypeScript files
+- **component-development.mdc** - Active in components directory
+- **styling-guidelines.mdc** - Active for styles and components
+
+### Manual Rules
+Rules with `description` are fetched when relevant:
+- **langgraph-integration.mdc** - When working with LangGraph
+- **development-workflow.mdc** - When setting up or debugging
+- **testing-quality.mdc** - When testing or reviewing code
+
+## Quick Reference
+
+### For New Contributors
+1. Read [project-architecture.mdc](mdc:project-architecture.mdc) for project overview
+2. Review [development-workflow.mdc](mdc:development-workflow.mdc) for setup
+3. Check [commit-standards.mdc](mdc:commit-standards.mdc) before committing
+
+### For Component Development
+1. Follow [component-development.mdc](mdc:component-development.mdc) patterns
+2. Use [typescript-react-patterns.mdc](mdc:typescript-react-patterns.mdc) for typing
+3. Apply [styling-guidelines.mdc](mdc:styling-guidelines.mdc) for UI
+
+### For LangGraph Integration
+1. Review [langgraph-integration.mdc](mdc:langgraph-integration.mdc)
+2. Check stream management patterns
+3. Understand message types and handling
+
+### For Code Quality
+1. Run linters: `pnpm lint:fix`
+2. Format code: `pnpm format`
+3. Review [testing-quality.mdc](mdc:testing-quality.mdc) checklist
+
+## File References
+
+Rules use the `[filename](mdc:filename)` syntax to reference files:
+- Links are relative to workspace root
+- Clicking opens the file in Cursor
+- Helps navigate codebase quickly
+
+Example:
+```markdown
+See [src/components/thread/markdown-text.tsx](mdc:src/components/thread/markdown-text.tsx)
+```
+
+## Updating Rules
+
+### Adding a New Rule
+1. Create `.mdc` file in `.cursor/rules/`
+2. Add frontmatter with metadata
+3. Write content in Markdown
+4. Reference files using `[file](mdc:file)` syntax
+5. Update this README
+
+### Modifying Existing Rules
+1. Keep rules focused and specific
+2. Update examples when code changes
+3. Maintain consistent formatting
+4. Test rule application
+
+### Rule Structure
+```markdown
+---
+alwaysApply: false
+description: "Rule description for AI"
+globs: *.ts,*.tsx
+---
+
+# Rule Title
+
+Content goes here...
+```
+
+## Best Practices
+
+### Writing Rules
+- Be specific and actionable
+- Include code examples
+- Reference actual project files
+- Keep rules focused on one topic
+- Update when patterns change
+
+### Using Rules
+- Let Cursor apply rules automatically
+- Manually invoke when needed
+- Follow referenced patterns
+- Suggest improvements
+
+### Maintaining Rules
+- Review when adding major features
+- Update examples when code changes
+- Remove outdated information
+- Keep synchronized with codebase
+
+## Key Patterns
+
+### Provider Hierarchy
+```tsx
+<ThreadProvider>
+  <StreamProvider>
+    <ArtifactProvider>
+      <Thread />
+    </ArtifactProvider>
+  </StreamProvider>
+</ThreadProvider>
+```
+
+### Component Structure
+```typescript
+export function Component({
+  prop1,
+  prop2,
+}: ComponentProps): React.ReactNode {
+  // Hooks
+  // Effects
+  // Handlers
+  // Render
+}
+```
+
+### Commit Format
+```
+<emoji> <type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Styling Pattern
+```typescript
+import { cn } from "@/lib/utils";
+
+<div className={cn(
+  "base-classes",
+  condition && "conditional-classes",
+  className
+)} />
+```
+
+## Resources
+
+### Project Documentation
+- [README.md](mdc:README.md) - Project overview
+- [docs/README.md](mdc:docs/README.md) - Detailed documentation
+- [package.json](mdc:package.json) - Dependencies and scripts
+
+### Configuration Files
+- [tsconfig.json](mdc:tsconfig.json) - TypeScript configuration
+- [tailwind.config.js](mdc:tailwind.config.js) - Tailwind CSS
+- [eslint.config.js](mdc:eslint.config.js) - ESLint
+- [next.config.mjs](mdc:next.config.mjs) - Next.js
+
+### Key Source Files
+- [src/providers/Stream.tsx](mdc:src/providers/Stream.tsx) - LangGraph stream
+- [src/components/thread/index.tsx](mdc:src/components/thread/index.tsx) - Main thread
+- [src/components/thread/messages/ai.tsx](mdc:src/components/thread/messages/ai.tsx) - AI messages
+- [src/components/ui](mdc:src/components/ui) - UI components
+
+## Contributing
+
+When contributing to rules:
+1. Keep rules concise and relevant
+2. Test rule effectiveness
+3. Get feedback from team
+4. Update this README
+5. Commit with proper message
+
+Example commit:
+```bash
+git commit -m "📚 docs(rules): add testing guidelines rule"
+```
+
+## Support
+
+For questions about rules:
+1. Check this README
+2. Review the specific rule file
+3. Look at referenced source files
+4. Ask in team discussions
+5. Open an issue if needed
+
+---
+
+Last updated: 2025-10-17

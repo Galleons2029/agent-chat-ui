@@ -1,0 +1,381 @@
+---
+description: Development workflow, tooling, and best practices
+---
+
+# Development Workflow Guide
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+ (recommended: 20+)
+- pnpm 10.18.3+
+- Git
+
+### Initial Setup
+```bash
+# Clone repository
+git clone https://github.com/langchain-ai/agent-chat-ui.git
+cd agent-chat-ui
+
+# Install dependencies
+pnpm install
+
+# Create environment file (optional)
+cp .env.example .env
+
+# Start development server
+pnpm dev
+```
+
+Access the app at `http://localhost:3000`
+
+## Available Scripts
+
+### Development
+```bash
+pnpm dev          # Start Next.js dev server with hot reload
+```
+
+### Building
+```bash
+pnpm build        # Build production bundle
+pnpm start        # Start production server
+```
+
+### Code Quality
+```bash
+pnpm lint         # Run ESLint
+pnpm lint:fix     # Auto-fix ESLint issues
+pnpm format       # Format code with Prettier
+pnpm format:check # Check formatting without changes
+```
+
+### Testing
+```bash
+# Navigate to test page
+# http://localhost:3000/test-components
+```
+
+## Project Configuration
+
+### TypeScript
+Configuration: [tsconfig.json](mdc:tsconfig.json)
+- Strict mode enabled
+- Path aliases: `@/*` → `src/*`, `@ui/*` → `ui/*`
+- Target: ES2017
+- Module: ESNext with bundler resolution
+
+### ESLint
+Configuration: [eslint.config.js](mdc:eslint.config.js)
+- Extends Next.js recommended config
+- React Hooks plugin
+- TypeScript ESLint plugin
+
+### Prettier
+Configuration: [prettier.config.js](mdc:prettier.config.js)
+- Tailwind CSS plugin for class sorting
+- Consistent code formatting
+
+### Tailwind CSS
+Configuration: [tailwind.config.js](mdc:tailwind.config.js)
+- Custom theme with CSS variables
+- Dark mode support
+- Custom plugins: animate, scrollbar
+
+### Next.js
+Configuration: [next.config.mjs](mdc:next.config.mjs)
+- App Router enabled
+- Turbopack in development
+- React 19 support
+
+## Development Patterns
+
+### Adding a New Feature
+
+1. **Create components**
+```bash
+src/components/feature-name/
+  ├── index.tsx
+  ├── types.ts
+  └── utils.ts
+```
+
+2. **Add types**
+```typescript
+// types.ts
+export interface FeatureProps {
+  // Define props
+}
+```
+
+3. **Implement component**
+```typescript
+// index.tsx
+import type { FeatureProps } from "./types";
+
+export function Feature(props: FeatureProps): React.ReactNode {
+  // Implementation
+}
+```
+
+4. **Test manually**
+Visit `http://localhost:3000/test-components` or create a test page
+
+5. **Document**
+Add documentation in `docs/` if needed
+
+6. **Commit**
+Follow commit standards from [.cursor/rules/commit-standards.mdc](mdc:.cursor/rules/commit-standards.mdc)
+
+### Adding a UI Component
+
+1. **Use shadcn/ui CLI** (if available)
+```bash
+# Example (if shadcn CLI is set up)
+npx shadcn-ui@latest add [component]
+```
+
+2. **Manual addition**
+- Create component in `src/components/ui/`
+- Follow shadcn/ui patterns
+- Use Radix UI primitives
+- Support variants with CVA
+
+3. **Usage**
+```typescript
+import { Component } from "@/components/ui/component";
+```
+
+### Adding Custom Components
+
+1. **Register in registry**
+Edit [src/components/thread/messages/custom-component-registry.tsx](mdc:src/components/thread/messages/custom-component-registry.tsx)
+
+2. **Define config type**
+```typescript
+export interface MyComponentConfig {
+  type: "my_component";
+  data: {
+    // Component data structure
+  };
+}
+```
+
+3. **Create renderer**
+```typescript
+function renderMyComponent(config: MyComponentConfig) {
+  return <MyComponent {...config.data} />;
+}
+```
+
+4. **Update registry**
+```typescript
+export type ComponentConfig = 
+  | ChartConfig 
+  | TableConfig
+  | MyComponentConfig;  // Add here
+```
+
+## Environment Variables
+
+### Public Variables
+Exposed to client (prefix with `NEXT_PUBLIC_`):
+```bash
+NEXT_PUBLIC_API_URL="http://localhost:2024"
+NEXT_PUBLIC_ASSISTANT_ID="agent"
+```
+
+### Private Variables
+Server-side only (no prefix):
+```bash
+LANGSMITH_API_KEY="lsv2_..."
+LANGGRAPH_API_URL="https://your-agent.langgraph.app"
+```
+
+### Loading Priority
+1. URL query parameters
+2. Environment variables
+3. Local storage (API key only)
+4. Default values
+
+## Debugging
+
+### Browser DevTools
+- React DevTools for component inspection
+- Network tab for API requests
+- Console for logs and errors
+
+### Next.js DevTools
+- Build errors shown in browser overlay
+- Fast Refresh for instant updates
+- Source maps enabled in development
+
+### LangGraph Connection
+- Check console for connection status
+- Toast notification on connection failure
+- Verify API URL and credentials
+
+### Common Issues
+
+#### Port Already in Use
+```bash
+# Kill process on port 3000
+lsof -ti:3000 | xargs kill -9
+
+# Or use different port
+pnpm dev -- -p 3001
+```
+
+#### Module Not Found
+```bash
+# Clear Next.js cache
+rm -rf .next
+
+# Reinstall dependencies
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+```
+
+#### TypeScript Errors
+```bash
+# Restart TypeScript server in VS Code
+# Cmd/Ctrl + Shift + P → "TypeScript: Restart TS Server"
+```
+
+#### Style Not Applying
+- Check Tailwind class names for typos
+- Verify dark mode if using theme colors
+- Check CSS specificity
+- Restart dev server
+
+## Git Workflow
+
+### Branch Strategy
+```bash
+# Create feature branch
+git checkout -b feat/feature-name
+
+# Make changes and commit
+git add .
+git commit -m "✨ feat(scope): description"
+
+# Push to remote
+git push origin feat/feature-name
+```
+
+### Before Committing
+1. Run linter: `pnpm lint:fix`
+2. Run formatter: `pnpm format`
+3. Test locally
+4. Review changes: `git diff`
+5. Write good commit message
+
+### Pull Request Guidelines
+- Provide clear description
+- Reference related issues
+- Include screenshots for UI changes
+- Ensure CI passes
+- Request reviews from maintainers
+
+## Code Review Checklist
+
+### For Reviewers
+- [ ] Code follows TypeScript best practices
+- [ ] Components are properly typed
+- [ ] UI is responsive and accessible
+- [ ] Dark mode works correctly
+- [ ] No console errors or warnings
+- [ ] Commit messages follow standards
+- [ ] Documentation is updated
+- [ ] No unnecessary dependencies added
+
+### For Authors
+- [ ] Self-review before requesting review
+- [ ] All comments addressed
+- [ ] Tests pass locally
+- [ ] Build succeeds
+- [ ] No merge conflicts
+
+## Performance Tips
+
+### Development
+- Use React DevTools Profiler
+- Check bundle size: `pnpm build` and review output
+- Lazy load heavy components
+- Memoize expensive computations
+
+### Production
+- Enable production mode optimizations
+- Use CDN for static assets
+- Optimize images
+- Monitor Web Vitals
+
+## Deployment
+
+### Vercel (Recommended)
+1. Connect GitHub repository
+2. Set environment variables
+3. Deploy automatically on push to main
+
+### Docker
+```bash
+# Build image
+docker build -t agent-chat-ui .
+
+# Run container
+docker run -p 3000:3000 agent-chat-ui
+```
+
+See [Dockerfile](mdc:Dockerfile) for configuration.
+
+### Self-hosted
+```bash
+pnpm build
+pnpm start
+```
+
+## Documentation
+
+### Adding Documentation
+1. Create markdown file in `docs/`
+2. Update `docs/README.md` with link
+3. Use clear headings and examples
+4. Include code snippets
+
+### Documentation Structure
+- Quick start guides
+- Integration guides
+- API references
+- Troubleshooting
+
+## Continuous Integration
+
+GitHub Actions workflow: [.github/workflows/ci.yml](mdc:.github/workflows/ci.yml)
+
+Runs on pull requests:
+- Lint check
+- Type check
+- Build check
+- Format check
+
+## Resources
+
+### External Documentation
+- [Next.js Docs](https://nextjs.org/docs)
+- [React Docs](https://react.dev)
+- [LangGraph SDK](https://langchain-ai.github.io/langgraph/)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+- [shadcn/ui](https://ui.shadcn.com)
+
+### Project Documentation
+- [README.md](mdc:README.md) - Project overview
+- [docs/README.md](mdc:docs/README.md) - Detailed documentation
+- [docs/quick-start.md](mdc:docs/quick-start.md) - Quick start guide
+
+## Getting Help
+
+1. Check existing documentation
+2. Search GitHub issues
+3. Review LangGraph documentation
+4. Ask in community forums
+5. Open a GitHub issue with reproduction steps
