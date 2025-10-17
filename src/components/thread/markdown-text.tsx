@@ -6,9 +6,10 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
-import { FC, memo, useState } from "react";
+import React, { FC, memo, useState } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { SyntaxHighlighter } from "@/components/thread/syntax-highlighter";
+import { MermaidDiagram } from "@/components/thread/mermaid-diagram";
 
 import { TooltipIconButton } from "@/components/thread/tooltip-icon-button";
 import { cn } from "@/lib/utils";
@@ -193,15 +194,36 @@ const defaultComponents: any = {
       {...props}
     />
   ),
-  pre: ({ className, ...props }: { className?: string }) => (
-    <pre
-      className={cn(
-        "max-w-4xl overflow-x-auto rounded-lg bg-black text-white",
-        className,
-      )}
-      {...props}
-    />
-  ),
+  pre: ({
+    className,
+    children,
+    ...props
+  }: {
+    className?: string;
+    children?: React.ReactNode;
+  }) => {
+    // 检查是否包含 mermaid 代码块
+    const isMermaid = React.Children.toArray(children).some((child: any) => {
+      return child?.props?.className?.includes("language-mermaid");
+    });
+
+    // 如果是 mermaid，不应用黑色背景
+    if (isMermaid) {
+      return <div className="my-0">{children}</div>;
+    }
+
+    return (
+      <pre
+        className={cn(
+          "max-w-4xl overflow-x-auto rounded-lg bg-black text-white",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </pre>
+    );
+  },
   code: ({
     className,
     children,
@@ -215,6 +237,11 @@ const defaultComponents: any = {
     if (match) {
       const language = match[1];
       const code = String(children).replace(/\n$/, "");
+
+      // 特殊处理 mermaid 图表
+      if (language === "mermaid") {
+        return <MermaidDiagram chart={code} />;
+      }
 
       return (
         <>
