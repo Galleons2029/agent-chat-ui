@@ -14,6 +14,10 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
+import {
+  extractComponentConfig,
+  CustomComponentRenderer,
+} from "./custom-component-registry";
 
 function CustomComponent({
   message,
@@ -24,14 +28,22 @@ function CustomComponent({
 }) {
   const artifact = useArtifact();
   const { values } = useStreamContext();
-  const customComponents = values.ui?.filter(
+
+  // 方式1：后端传递的 UI 组件（原有方式）
+  const backendComponents = values.ui?.filter(
     (ui) => ui.metadata?.message_id === message.id,
   );
 
-  if (!customComponents?.length) return null;
+  // 方式2：前端组件注册表（新增）
+  const frontendComponentConfig = extractComponentConfig(message);
+
+  // 如果两种方式都没有组件，返回 null
+  if (!backendComponents?.length && !frontendComponentConfig) return null;
+
   return (
     <Fragment key={message.id}>
-      {customComponents.map((customComponent) => (
+      {/* 渲染后端传递的组件 */}
+      {backendComponents?.map((customComponent) => (
         <LoadExternalComponent
           key={customComponent.id}
           stream={thread}
@@ -39,6 +51,11 @@ function CustomComponent({
           meta={{ ui: customComponent, artifact }}
         />
       ))}
+
+      {/* 渲染前端注册的组件 */}
+      {frontendComponentConfig && (
+        <CustomComponentRenderer config={frontendComponentConfig} />
+      )}
     </Fragment>
   );
 }
@@ -136,13 +153,35 @@ export function AssistantMessage({
   const hasAnthropicToolCalls = !!anthropicStreamedToolCalls?.length;
   const isToolResult = message?.type === "tool";
 
+  // 检查是否有自定义组件
+  const frontendComponentConfig = message
+    ? extractComponentConfig(message)
+    : null;
+  const { values } = useStreamContext();
+  const backendComponents = message
+    ? values.ui?.filter((ui) => ui.metadata?.message_id === message.id)
+    : [];
+  const hasCustomComponent = !!(
+    frontendComponentConfig || backendComponents?.length
+  );
+
   if (isToolResult && hideToolCalls) {
     return null;
   }
 
   return (
-    <div className="group mr-auto flex items-start gap-2">
-      <div className="flex flex-col gap-2">
+    <div
+      className={cn(
+        "group flex items-start gap-2",
+        hasCustomComponent ? "w-full" : "mr-auto",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-col gap-2",
+          hasCustomComponent ? "w-full" : "",
+        )}
+      >
         {isToolResult ? (
           <>
             <ToolResult message={message} />
