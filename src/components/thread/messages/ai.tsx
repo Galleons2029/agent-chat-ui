@@ -175,8 +175,18 @@ export function AssistantMessage({
   }
 
   return (
-    <div className="group mr-auto flex w-full items-start gap-2">
-      <div className="flex w-full flex-col gap-2">
+    <div
+      className={cn(
+        "group flex items-start gap-2",
+        hasCustomComponent ? "w-full" : "mr-auto",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-col gap-2",
+          hasCustomComponent ? "w-full" : "",
+        )}
+      >
         {isToolResult ? (
           <>
             <ToolResult message={message} />
