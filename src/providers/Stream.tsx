@@ -137,6 +137,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
   const envApiUrl: string | undefined = process.env.NEXT_PUBLIC_API_URL;
   const envAssistantId: string | undefined =
     process.env.NEXT_PUBLIC_ASSISTANT_ID;
+  const envApiKey: string | undefined = process.env.NEXT_PUBLIC_API_KEY;
 
   // Use URL params with env var fallbacks
   const [apiUrl, setApiUrl] = useQueryState("apiUrl", {
@@ -146,8 +147,9 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
     defaultValue: envAssistantId || "",
   });
 
-  // For API key, use localStorage with env var fallback
+  // For API key, prioritize env var, then localStorage
   const [apiKey, _setApiKey] = useState(() => {
+    if (envApiKey) return envApiKey;
     const storedKey = getApiKey();
     return storedKey || "";
   });
@@ -160,6 +162,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
   // Determine final values to use, prioritizing URL params then env vars
   const finalApiUrl = apiUrl || envApiUrl;
   const finalAssistantId = assistantId || envAssistantId;
+  const finalApiKey = apiKey || envApiKey || "";
 
   // Show the form if we: don't have an API URL, or don't have an assistant ID
   if (!finalApiUrl || !finalAssistantId) {
@@ -170,7 +173,7 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
             <div className="flex flex-col items-start gap-2">
               <LangGraphLogoSVG className="h-7" />
               <h1 className="text-xl font-semibold tracking-tight">
-                Agent Chat
+                苏州银行助手
               </h1>
             </div>
             <p className="text-muted-foreground">
@@ -265,9 +268,9 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
 
   return (
     <StreamSession
-      apiKey={apiKey}
-      apiUrl={apiUrl}
-      assistantId={assistantId}
+      apiKey={finalApiKey}
+      apiUrl={finalApiUrl}
+      assistantId={finalAssistantId}
     >
       {children}
     </StreamSession>

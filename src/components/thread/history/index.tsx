@@ -110,7 +110,7 @@ export default function ThreadHistory() {
             )}
           </Button>
           <h1 className="text-xl font-semibold tracking-tight">
-            Thread History
+            对话历史
           </h1>
         </div>
         {threadsLoading ? (
