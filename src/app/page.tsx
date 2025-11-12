@@ -108,9 +108,12 @@ export default function HomePage() {
                 <Link href="#demo" className="text-gray-700 hover:text-green-600 transition-colors">对话演示</Link>
                 <Link href="#benefits" className="text-gray-700 hover:text-green-600 transition-colors">产品优势</Link>
                 <Link href="#testimonials" className="text-gray-700 hover:text-green-600 transition-colors">用户评价</Link>
-                <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                <Link
+                  href="/login"
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
                   免费试用
-                </button>
+                </Link>
               </div>
             </div>
 
@@ -132,7 +135,12 @@ export default function HomePage() {
               <Link href="#demo" className="block px-3 py-2 text-gray-700 hover:text-green-600">对话演示</Link>
               <Link href="#benefits" className="block px-3 py-2 text-gray-700 hover:text-green-600">产品优势</Link>
               <Link href="#testimonials" className="block px-3 py-2 text-gray-700 hover:text-green-600">用户评价</Link>
-              <button className="w-full text-left bg-green-600 text-white px-3 py-2 rounded-lg mt-2">免费试用</button>
+              <Link
+                href="/login"
+                className="block w-full text-left bg-green-600 text-white px-3 py-2 rounded-lg mt-2"
+              >
+                免费试用
+              </Link>
             </div>
           </div>
         )}
@@ -152,9 +160,12 @@ export default function HomePage() {
                 帮助您的团队提升效率，降低培训成本。
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <button className="bg-green-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors shadow-lg">
+                <Link
+                  href="/login"
+                  className="bg-green-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors shadow-lg text-center"
+                >
                   开始免费试用
-                </button>
+                </Link>
                 <button className="flex items-center justify-center px-8 py-4 border-2 border-green-600 text-green-600 rounded-lg text-lg font-semibold hover:bg-green-50 transition-colors">
                   <Play className="w-5 h-5 mr-2" />
                   观看演示
@@ -397,9 +408,12 @@ export default function HomePage() {
             加入数千家银行的选择，提升您的团队效率和培训效果
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-white text-green-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition-colors">
+            <Link
+              href="/login"
+              className="bg-white text-green-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition-colors"
+            >
               免费试用 14 天
-            </button>
+            </Link>
             <button className="border-2 border-white text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-white hover:text-green-600 transition-colors">
               联系销售
             </button>
@@ -428,7 +442,7 @@ export default function HomePage() {
                 <li><Link href="#" className="hover:text-white transition-colors">核心功能</Link></li>
                 <li><Link href="#" className="hover:text-white transition-colors">对话演示</Link></li>
                 <li><Link href="#" className="hover:text-white transition-colors">定价方案</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">免费试用</Link></li>
+                <li><Link href="/login" className="hover:text-white transition-colors">免费试用</Link></li>
               </ul>
             </div>
             <div>
