@@ -43,6 +43,22 @@ ENV NEXT_TELEMETRY_DISABLED 1
 # 构建应用
 RUN pnpm build
 
+# 开发阶段（用于 docker compose 调试）
+FROM base AS dev
+WORKDIR /app
+
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED 1
+
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+EXPOSE 3000
+ENV PORT 3000
+CMD ["pnpm", "dev"]
+
 # 生产运行阶段
 FROM base AS runner
 WORKDIR /app

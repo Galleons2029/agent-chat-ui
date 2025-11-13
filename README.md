@@ -58,6 +58,19 @@ pnpm dev
 
 The app will be available at `http://localhost:3000`.
 
+### Docker Compose
+
+You can run the development server in a container that exposes port `3000`:
+
+```bash
+docker compose up --build
+```
+
+The bind mount keeps the container in sync with your local files, so edits on the host trigger hot reloads. When you add or remove dependencies, rebuild the dev image so the container's `node_modules` stay up to date:
+
+```bash
+docker compose build frontend
+```
 ## Usage
 
 Once the app is running (or if using the deployed site), you'll be prompted to enter:
