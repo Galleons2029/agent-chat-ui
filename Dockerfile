@@ -13,8 +13,9 @@ ENV NEXT_BASE_PATH=${NEXT_BASE_PATH}
 ENV NODE_ENV=production
 
 
-# 安装 libc6-compat 以确保兼容性
-RUN apk add --no-cache libc6-compat && \
+# 切换到国内 Alpine 镜像以加速 apk 安装
+RUN sed -i 's#https://dl-cdn.alpinelinux.org#https://mirrors.aliyun.com#g' /etc/apk/repositories && \
+    apk add --no-cache libc6-compat && \
     # 国内 淘宝 镜像源
     npm config set registry https://registry.npmmirror.com/
 
