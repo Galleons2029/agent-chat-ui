@@ -2,8 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Brain, Database, MessageCircle, BookOpen, CheckCircle, Star, Play, Menu, X } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
+
+type LogoIconProps = {
+  size?: number;
+  className?: string;
+};
+
+const LogoIcon = ({ size = 32, className }: LogoIconProps) => (
+  <Image
+    src="/logo.svg"
+    alt="财枢智擎 Logo"
+    width={size}
+    height={size}
+    className={`object-contain ${className ?? ''}`.trim()}
+  />
+);
 
 export default function HomePage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -61,7 +77,7 @@ export default function HomePage() {
     {
       title: "实时测试",
       description: "根据学习进度自动生成测试，实时评估学习效果",
-      icon: <Brain className="w-8 h-8" />,
+      icon: <LogoIcon size={32} />,
     },
     {
       title: "知识管理",
@@ -95,11 +111,11 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center">
-                <div className="bg-green-600 w-8 h-8 rounded-lg flex items-center justify-center">
-                  <Brain className="w-5 h-5 text-white" />
+              <div className="flex-shrink-0 flex items-center gap-3 rounded-full border border-emerald-50/80 bg-white/95 px-3.5 py-1.5 pr-5 shadow-[0_12px_25px_rgba(16,185,129,0.08)] backdrop-blur">
+                <div className="bg-gradient-to-br from-emerald-50 via-emerald-100 to-green-100 w-10 h-10 rounded-2xl flex items-center justify-center shadow-[inset_0_-1px_4px_rgba(255,255,255,0.6)]">
+                  <LogoIcon size={24} className="drop-shadow-[0_1px_4px_rgba(16,185,129,0.25)]" />
                 </div>
-                <BrandMark className="ml-2 text-xl md:text-2xl" />
+                <BrandMark className="text-xl md:text-2xl tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-400" />
               </div>
             </div>
 
@@ -192,7 +208,7 @@ export default function HomePage() {
                 <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-6 text-white">
                   <div className="flex items-center mb-4">
                     <div className="bg-white bg-opacity-20 rounded-full p-2 mr-3">
-                      <Brain className="w-6 h-6 text-green-600" />
+                      <LogoIcon size={24} />
                     </div>
                     <h3 className="text-xl font-semibold flex items-center gap-2">
                       <BrandMark className="text-2xl" glow={false} />
@@ -301,7 +317,7 @@ export default function HomePage() {
             <div className="bg-gray-50 rounded-lg p-6 mb-6">
               <div className="flex items-center mb-4">
                 <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mr-3">
-                  <Brain className="w-4 h-4 text-white" />
+                  <LogoIcon size={16} />
                 </div>
                 <BrandMark glow={false} className="text-lg" />
               </div>
@@ -446,7 +462,7 @@ export default function HomePage() {
             <div>
               <div className="flex items-center mb-4">
                 <div className="bg-green-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
-                  <Brain className="w-5 h-5 text-white" />
+                  <LogoIcon size={20} />
                 </div>
                 <BrandMark className="text-xl" />
               </div>

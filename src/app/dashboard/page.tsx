@@ -61,7 +61,7 @@ type FeaturePlaceholderAction = {
 
 const navigationItems = [
   { id: 'dashboard', label: '数据看板', icon: Home, color: 'bg-green-500' },
-  { id: 'ai', label: '智能AI问答', icon: Bot, color: 'bg-blue-500' },
+  { id: 'ai', label: 'AI 助手', icon: Bot, color: 'bg-blue-500' },
   { id: 'knowledge', label: '知识库', icon: Database, color: 'bg-purple-500' },
   { id: 'accounts', label: '账户查询', icon: FileText, color: 'bg-amber-500' },
   { id: 'analysis', label: '数据分析', icon: BarChart2, color: 'bg-teal-500' },
@@ -138,12 +138,12 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
     render: () => <DashboardOverview />,
   },
   ai: {
-    title: '智能AI问答',
+    title: 'AI 助手',
     description: '构建智能问答流程，辅助内部员工完成业务咨询',
     render: () => (
       <FeaturePlaceholder
         icon={Bot}
-        title="智能AI问答"
+        title="AI 助手"
         description="连接企业知识库，搭建问答流程并跟踪对话质量，帮助业务团队快速获得准确回复。"
         actions={[
           { label: '新建问答流程', variant: 'primary' },
@@ -238,15 +238,15 @@ type SidebarProps = {
 
 function Sidebar({ items, active, onSelect }: SidebarProps) {
   return (
-    <div className="w-64 bg-white shadow-lg flex flex-col">
-      <div className="p-6 border-b border-gray-200">
+    <div className="w-64 bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 text-emerald-50 shadow-2xl flex flex-col">
+      <div className="p-6 border-b border-white/10">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-            <FileText className="text-white" size={20} />
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-emerald-900/30">
+            <img src="/logo.svg" alt="Logo" className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">银行会计系统</h1>
-            <p className="text-xs text-gray-500">Internal Accounting System</p>
+            <h1 className="text-2xl font-bold text-white">财枢智擎</h1>
+            <p className="text-sm text-emerald-100/90">Bank-Copilot</p>
           </div>
         </div>
       </div>
@@ -258,7 +258,9 @@ function Sidebar({ items, active, onSelect }: SidebarProps) {
               <button
                 onClick={() => onSelect(item.id)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                  active === item.id ? `${item.color} text-white` : 'text-gray-700 hover:bg-gray-100'
+                  active === item.id
+                    ? `${item.color} text-white shadow-lg shadow-emerald-900/20`
+                    : 'text-emerald-100/80 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <item.icon size={20} />
@@ -269,14 +271,14 @@ function Sidebar({ items, active, onSelect }: SidebarProps) {
         </ul>
       </nav>
 
-      <div className="p-6 border-t border-gray-200">
+      <div className="p-6 border-t border-white/10">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-            <User size={20} className="text-gray-600" />
+          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
+            <User size={20} className="text-white" />
           </div>
           <div>
-            <p className="font-medium text-gray-800">张会计</p>
-            <p className="text-xs text-gray-500">会计主管</p>
+            <p className="font-medium text-white">张会计</p>
+            <p className="text-xs text-emerald-100/90">会计主管</p>
           </div>
         </div>
       </div>
