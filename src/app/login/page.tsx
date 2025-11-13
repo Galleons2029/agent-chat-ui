@@ -38,7 +38,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/navigation');
+      router.push('/dashboard');
     } finally {
       setIsLoading(false);
     }

@@ -77,27 +77,6 @@ export default function NavigationPage() {
           })}
         </section>
 
-        <section className="rounded-3xl border border-emerald-100 bg-white/80 px-8 py-10 shadow-sm shadow-emerald-100 grid gap-8 md:grid-cols-2">
-          <div>
-            <p className="text-sm uppercase tracking-[0.35em] text-emerald-500">实时洞察</p>
-            <h2 className="text-2xl font-semibold text-gray-900 mt-3">关键运营指标</h2>
-            <p className="text-gray-500 mt-4 leading-relaxed">
-              汇总培训进度、财务预警和知识库访问情况，帮助你快速了解运营现状，及时发现风险信号。
-            </p>
-          </div>
-          <div className="grid gap-4">
-            {[
-              { label: '新员工培训完成率', value: '87%' },
-              { label: '财务异常待处理', value: '3条' },
-              { label: '知识库日均访问', value: '256 次' },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-emerald-50 bg-gradient-to-r from-emerald-50 to-white px-6 py-4">
-                <p className="text-sm text-gray-500">{item.label}</p>
-                <p className="text-2xl font-semibold text-gray-900 mt-1">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
       </main>
 
       <footer className="text-center text-xs text-gray-500 py-6">

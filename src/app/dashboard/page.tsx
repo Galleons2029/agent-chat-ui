@@ -125,6 +125,12 @@ const accountDistributionData = [
 
 const ACCOUNT_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
+const realtimeInsightMetrics = [
+  { label: '新员工培训完成率', value: '87%', helper: '较上周 +4.2%' },
+  { label: '财务异常待处理', value: '3 条', helper: '已派单 2 条' },
+  { label: '知识库日均访问', value: '256 次', helper: '环比 +12.4%' },
+] as const;
+
 const featurePanels: Record<PanelId, FeaturePanel> = {
   dashboard: {
     title: '数据看板',
@@ -420,6 +426,8 @@ function DashboardOverview() {
           </ResponsiveContainer>
         </ChartCard>
       </div>
+
+      <RealtimeInsights />
     </section>
   );
 }
@@ -482,5 +490,40 @@ function FeaturePlaceholder({ icon: Icon, title, description, actions = [] }: Fe
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RealtimeInsights() {
+  return (
+    <section className="bg-white rounded-2xl border border-emerald-100 p-8 shadow-sm">
+      <div className="grid gap-8 lg:grid-cols-2">
+        <div>
+          <p className="text-xs uppercase tracking-[0.35em] text-emerald-500">实时洞察</p>
+          <h2 className="text-2xl font-semibold text-gray-900 mt-3">关键运营指标</h2>
+          <p className="text-gray-500 mt-4 leading-relaxed">
+            汇总培训进度、财务预警与知识库访问情况。和前方的收入趋势、账户分布形成闭环，帮助你一次性掌握全局动态。
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3 text-sm text-gray-500">
+            <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700">更新于 5 分钟前</span>
+            <span className="px-3 py-1 rounded-full bg-gray-100">AI 异常监测开启</span>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          {realtimeInsightMetrics.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-2xl border border-emerald-50 bg-gradient-to-r from-emerald-50 to-white px-6 py-4 shadow-sm"
+            >
+              <p className="text-sm text-gray-500">{item.label}</p>
+              <div className="mt-1 flex items-end justify-between">
+                <p className="text-2xl font-semibold text-gray-900">{item.value}</p>
+                <span className="text-sm text-emerald-600">{item.helper}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
