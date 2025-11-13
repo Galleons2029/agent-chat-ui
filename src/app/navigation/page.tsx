@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { BarChart3, MessageCircle, BookOpen, Database, ArrowRight } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 
 const shortcuts = [
   {
     title: '智能对话',
-    description: '与 Bank-Copilot 协同处理业务、解答疑问',
+    description: '与财枢智擎协同处理业务、解答疑问',
     href: '/chat',
     icon: MessageCircle,
   },
@@ -34,7 +35,7 @@ export default function NavigationPage() {
       <header className="bg-white/80 backdrop-blur border-b border-emerald-100">
         <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase text-emerald-500 tracking-[0.4em]">Bank-Copilot</p>
+            <BrandMark glow={false} className="text-sm tracking-[0.4em]" />
             <h1 className="text-3xl font-semibold text-gray-900 mt-1">智能协同导航中心</h1>
             <p className="text-gray-500 mt-2">统一入口连接培训、财务分析与智能助理，一次登录即可触达所有能力。</p>
           </div>

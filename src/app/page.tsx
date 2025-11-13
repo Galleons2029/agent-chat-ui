@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Brain, Database, MessageCircle, BookOpen, CheckCircle, Star, Play, Menu, X } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 
 export default function HomePage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -31,7 +32,7 @@ export default function HomePage() {
       icon: <MessageCircle className="w-8 h-8" />,
       title: "超强记忆模块",
       description: "支持超长多轮对话，保持上下文连贯性",
-      details: "先进的记忆机制让 Bank-Copilot 能够在长时间对话中保持上下文连贯性。无论对话多复杂，系统都能记住关键信息，提供连贯、准确的响应。"
+      details: "先进的记忆机制让财枢智擎能够在长时间对话中保持上下文连贯性。无论对话多复杂，系统都能记住关键信息，提供连贯、准确的响应。"
     }
   ];
 
@@ -75,7 +76,7 @@ export default function HomePage() {
   ];
 
   const testimonials = [
-    { name: "张经理", role: "培训部主管", content: "Bank-Copilot 让新员工培训周期缩短了 40%，学习效果显著提升。" },
+    { name: "张经理", role: "培训部主管", content: "财枢智擎让新员工培训周期缩短了 40%，学习效果显著提升。" },
     { name: "李会计", role: "财务分析师", content: "账户分析功能帮我快速解决了困扰已久的总账不平衡问题。" },
     { name: "王主任", role: "IT部门", content: "系统的稳定性和智能程度超出了我们的预期，强烈推荐。" }
   ];
@@ -98,7 +99,7 @@ export default function HomePage() {
                 <div className="bg-green-600 w-8 h-8 rounded-lg flex items-center justify-center">
                   <Brain className="w-5 h-5 text-white" />
                 </div>
-                <span className="ml-2 text-xl font-bold text-gray-900">Bank-Copilot</span>
+                <BrandMark className="ml-2 text-xl md:text-2xl" />
               </div>
             </div>
 
@@ -152,7 +153,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
-                Bank-Copilot
+                <BrandMark className="block text-4xl md:text-5xl lg:text-6xl leading-tight" />
                 <span className="block text-green-600">银行智能助手</span>
               </h1>
               <p className="mt-6 text-xl text-gray-600 leading-relaxed">
@@ -193,7 +194,10 @@ export default function HomePage() {
                     <div className="bg-white bg-opacity-20 rounded-full p-2 mr-3">
                       <Brain className="w-6 h-6 text-green-600" />
                     </div>
-                    <h3 className="text-xl font-semibold">Bank-Copilot 智能助手</h3>
+                    <h3 className="text-xl font-semibold flex items-center gap-2">
+                      <BrandMark className="text-2xl" glow={false} />
+                      <span className="text-white/90">智能助手</span>
+                    </h3>
                   </div>
                   <div className="space-y-3">
                     {heroStats.map((stat) => (
@@ -223,7 +227,9 @@ export default function HomePage() {
               核心功能
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Bank-Copilot 集成了四大核心功能，全方位提升银行内部工作效率
+              <BrandMark glow={false} className="text-2xl mr-2" />
+              {' '}
+              集成了四大核心功能，全方位提升银行内部工作效率
             </p>
           </div>
 
@@ -283,7 +289,11 @@ export default function HomePage() {
               对话演示
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              体验 Bank-Copilot 的智能对话能力，感受自然语言交互的便捷
+              体验
+              {' '}
+              <BrandMark glow={false} className="text-2xl mx-1" />
+              {' '}
+              的智能对话能力，感受自然语言交互的便捷
             </p>
           </div>
 
@@ -293,11 +303,16 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mr-3">
                   <Brain className="w-4 h-4 text-white" />
                 </div>
-                <span className="font-semibold text-gray-900">Bank-Copilot</span>
+                <BrandMark glow={false} className="text-lg" />
               </div>
               <div className="space-y-3">
                 <div className="bg-green-100 rounded-lg p-4">
-                  <p className="text-gray-800">您好！我是 Bank-Copilot，银行智能助手。我可以帮助您学习银行内部知识、解答财务问题，或进行账户分析。请告诉我您需要什么帮助？</p>
+                  <p className="text-gray-800">
+                    您好！我是
+                    {' '}
+                    <BrandMark glow={false} className="text-base mx-1" />
+                    ，银行智能助手。我可以帮助您学习银行内部知识、解答财务问题，或进行账户分析。请告诉我您需要什么帮助？
+                  </p>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-4">
                   <p className="text-gray-800">你好，我想了解一下银行的贷款审批流程。</p>
@@ -334,7 +349,9 @@ export default function HomePage() {
               产品优势
             </h2>
             <p className="text-xl text-green-100 max-w-3xl mx-auto">
-              Bank-Copilot 为银行内部员工提供全方位的智能支持
+              <BrandMark glow={false} className="text-2xl mr-2" />
+              {' '}
+              为银行内部员工提供全方位的智能支持
             </p>
           </div>
 
@@ -401,8 +418,9 @@ export default function HomePage() {
       {/* CTA区域 */}
       <section className="py-20 bg-gradient-to-r from-green-600 to-emerald-700">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            立即体验 Bank-Copilot
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6 flex flex-wrap items-center justify-center gap-2">
+            <span>立即体验</span>
+            <BrandMark className="text-4xl" />
           </h2>
           <p className="text-xl text-green-100 mb-8 max-w-2xl mx-auto">
             加入数千家银行的选择，提升您的团队效率和培训效果
@@ -430,7 +448,7 @@ export default function HomePage() {
                 <div className="bg-green-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
                   <Brain className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold">Bank-Copilot</span>
+                <BrandMark className="text-xl" />
               </div>
               <p className="text-gray-400">
                 专为银行内部员工设计的AI助手，提升培训效率，优化财务管理。
@@ -463,7 +481,12 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2025 Bank-Copilot. 保留所有权利。</p>
+            <p>
+              &copy; 2025
+              {' '}
+              <BrandMark glow={false} className="text-base mx-1" />
+              . 保留所有权利。
+            </p>
           </div>
         </div>
       </footer>
