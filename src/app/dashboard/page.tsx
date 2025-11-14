@@ -29,6 +29,12 @@ import {
   Users,
   ClipboardList,
 } from 'lucide-react';
+import { Thread } from "@/components/thread";
+import { StreamProvider } from "@/providers/Stream";
+import { ThreadProvider } from "@/providers/Thread";
+import { ArtifactProvider } from "@/components/thread/artifact";
+import { Toaster } from "@/components/ui/sonner";
+import React from "react";
 
 type NavigationItem = {
   id: string;
@@ -60,8 +66,8 @@ type FeaturePlaceholderAction = {
 };
 
 const navigationItems = [
-  { id: 'dashboard', label: '数据看板', icon: Home, color: 'bg-emerald-500' },
   { id: 'ai', label: 'AI 助手', icon: Bot, color: 'bg-emerald-500' },
+  { id: 'dashboard', label: '数据看板', icon: Home, color: 'bg-emerald-500' },
   { id: 'knowledge', label: '知识库', icon: Database, color: 'bg-emerald-500' },
   { id: 'accounts', label: '总分查账', icon: FileText, color: 'bg-emerald-500' },
   { id: 'analysis', label: '数据分析', icon: BarChart2, color: 'bg-emerald-500' },
@@ -140,17 +146,7 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
   ai: {
     title: 'AI 助手',
     description: '构建智能问答流程，辅助内部员工完成业务咨询',
-    render: () => (
-      <FeaturePlaceholder
-        icon={Bot}
-        title="AI 助手"
-        description="连接企业知识库，搭建问答流程并跟踪对话质量，帮助业务团队快速获得准确回复。"
-        actions={[
-          { label: '新建问答流程', variant: 'primary' },
-          { label: '同步知识库', variant: 'secondary' },
-        ]}
-      />
-    ),
+    render: () => <AIChatPanel />,
   },
   knowledge: {
     title: '知识库',
@@ -214,8 +210,32 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
   },
 };
 
+function AIChatPanel() {
+  return (
+    <div className="h-[calc(100vh-180px)] overflow-hidden">
+      <React.Suspense fallback={
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <Bot className="w-12 h-12 text-emerald-500 mx-auto mb-4 animate-pulse" />
+            <p className="text-gray-500">Loading AI Assistant...</p>
+          </div>
+        </div>
+      }>
+        <Toaster />
+        <ThreadProvider>
+          <StreamProvider>
+            <ArtifactProvider>
+              <Thread />
+            </ArtifactProvider>
+          </StreamProvider>
+        </ThreadProvider>
+      </React.Suspense>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
-  const [activeMenu, setActiveMenu] = useState<PanelId>('dashboard');
+  const [activeMenu, setActiveMenu] = useState<PanelId>('ai');
   const activePanel = featurePanels[activeMenu] ?? featurePanels.dashboard;
 
   return (
@@ -224,14 +244,16 @@ export default function DashboardPage() {
 
       <div className="flex-1 flex flex-col">
         <DashboardHeader title={activePanel.title} description={activePanel.description} />
-        <main className="flex-1 p-6 overflow-y-auto">{activePanel.render()}</main>
+        <main className={`flex-1 ${activeMenu === 'ai' ? 'p-0 overflow-hidden' : 'p-6 overflow-y-auto'}`}>
+          {activePanel.render()}
+        </main>
       </div>
     </div>
   );
 }
 
 type SidebarProps = {
-  items: NavigationItem[];
+  items: readonly NavigationItem[];
   active: PanelId;
   onSelect: (id: PanelId) => void;
 };
@@ -256,7 +278,7 @@ function Sidebar({ items, active, onSelect }: SidebarProps) {
           {items.map((item) => (
             <li key={item.id}>
               <button
-                onClick={() => onSelect(item.id)}
+                onClick={() => onSelect(item.id as PanelId)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                   active === item.id
                     ? `${item.color} text-white shadow-lg shadow-emerald-900/20`
@@ -320,7 +342,7 @@ function DashboardHeader({ title, description }: DashboardHeaderProps) {
         </div>
 
         <div className="relative">
-          <Bell size={20} className="text-gray-600 cursor-pointer" />
+          <Bell size={25} className="text-gray-600 cursor-pointer" />
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
             3
           </span>
