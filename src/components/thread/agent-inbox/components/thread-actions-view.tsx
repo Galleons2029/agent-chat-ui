@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useQueryState } from "nuqs";
 import { constructOpenInStudioURL } from "../utils";
 import { HumanInterrupt } from "@langchain/langgraph/prebuilt";
+import { resolveApiUrl } from "@/lib/langgraph-config";
 
 interface ThreadActionsViewProps {
   interrupt: HumanInterrupt;
@@ -61,6 +62,7 @@ export function ThreadActionsView({
   showState,
 }: ThreadActionsViewProps) {
   const [threadId] = useQueryState("threadId");
+  const apiUrl = resolveApiUrl();
   const {
     acceptAllowed,
     hasEdited,
@@ -81,7 +83,6 @@ export function ThreadActionsView({
   } = useInterruptedActions({
     interrupt,
   });
-  const [apiUrl] = useQueryState("apiUrl");
 
   const handleOpenInStudio = () => {
     if (!apiUrl) {
