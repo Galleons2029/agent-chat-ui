@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   CartesianGrid,
   Cell,
@@ -54,6 +54,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -108,7 +109,6 @@ const navigationItems = [
   { id: 'accounts', label: '总分查账', icon: FileText, color: 'bg-emerald-500' },
   { id: 'learning', label: '学习进度', icon: BookOpenCheck, color: 'bg-indigo-500' },
   { id: 'training', label: '企业培训', icon: GraduationCap, color: 'bg-amber-500' },
-  { id: 'settings', label: '系统设置', icon: Settings, color: 'bg-emerald-500' },
 ] as const satisfies NavigationItem[];
 
 type PanelId = (typeof navigationItems)[number]['id'];
@@ -362,21 +362,6 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
     description: '记录员工对企业培训知识点的学习进度，区分已完成与未完成重点。',
     render: () => <TrainingPanel />,
   },
-  settings: {
-    title: '系统设置',
-    description: '统一管理组织、权限和集成配置',
-    render: () => (
-      <FeaturePlaceholder
-        icon={Settings}
-        title="系统设置"
-        description="维护组织架构、角色权限与外部系统集成，确保各功能模块顺畅协同。"
-        actions={[
-          { label: '管理角色权限', variant: 'primary' },
-          { label: '查看审计日志', variant: 'secondary' },
-        ]}
-      />
-    ),
-  },
 };
 
 type AIChatPanelProps = {
@@ -474,6 +459,8 @@ function AIChatPanel({ guidanceIntent, onClearGuidance }: AIChatPanelProps) {
 export default function DashboardPage() {
   const [activeMenu, setActiveMenu] = useState<PanelId>('ai');
   const [aiGuidanceIntent, setAIGuidanceIntent] = useState<AIGuidanceIntent | null>(null);
+  const [isSettingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const router = useRouter();
 
   const handleSelectPanel = useCallback(
     (id: PanelId) => {
@@ -495,6 +482,12 @@ export default function DashboardPage() {
 
   const handleClearGuidance = useCallback(() => setAIGuidanceIntent(null), []);
 
+  const handleOpenSettingsDialog = useCallback(() => setSettingsDialogOpen(true), []);
+
+  const handleLogout = useCallback(() => {
+    router.push('/login');
+  }, [router]);
+
   const activePanel = featurePanels[activeMenu] ?? featurePanels.dashboard;
   const panelContext: FeaturePanelRenderContext = {
     openPanel: handleSelectPanel,
@@ -504,16 +497,26 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar items={navigationItems} active={activeMenu} onSelect={handleSelectPanel} />
+    <>
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar
+          items={navigationItems}
+          active={activeMenu}
+          onSelect={handleSelectPanel}
+          onOpenSettings={handleOpenSettingsDialog}
+          onLogout={handleLogout}
+        />
 
-      <div className="flex-1 flex flex-col">
-        <DashboardHeader title={activePanel.title} description={activePanel.description} />
-        <main className={`flex-1 ${activeMenu === 'ai' ? 'p-0 overflow-hidden' : 'p-6 overflow-y-auto'}`}>
-          {activePanel.render(panelContext)}
-        </main>
+        <div className="flex-1 flex flex-col">
+          <DashboardHeader title={activePanel.title} description={activePanel.description} />
+          <main className={`flex-1 ${activeMenu === 'ai' ? 'p-0 overflow-hidden' : 'p-6 overflow-y-auto'}`}>
+            {activePanel.render(panelContext)}
+          </main>
+        </div>
       </div>
-    </div>
+
+      <SystemSettingsDialog open={isSettingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
+    </>
   );
 }
 
@@ -521,18 +524,87 @@ type SidebarProps = {
   items: readonly NavigationItem[];
   active: PanelId;
   onSelect: (id: PanelId) => void;
+  onOpenSettings: () => void;
+  onLogout: () => void;
 };
 
-function Sidebar({ items, active, onSelect }: SidebarProps) {
+function Sidebar({ items, active, onSelect, onOpenSettings, onLogout }: SidebarProps) {
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isUserMenuOpen) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isUserMenuOpen]);
+
+  type UserMenuItem = {
+    id: string;
+    label: string;
+    description?: string;
+    icon: LucideIcon;
+    action: () => void;
+    destructive?: boolean;
+  };
+
+  const userMenuItems: UserMenuItem[] = [
+    {
+      id: 'plan',
+      label: '升级套餐',
+      description: '解锁更高的调用配额',
+      icon: Sparkles,
+      action: () => toast('升级套餐功能即将上线'),
+    },
+    {
+      id: 'personalize',
+      label: '个性化偏好',
+      description: '定制主题与快捷方式',
+      icon: Edit3,
+      action: () => toast('个性化能力正在接入'),
+    },
+    {
+      id: 'settings',
+      label: '系统设置',
+      description: '组织、权限与安全策略',
+      icon: Settings,
+      action: onOpenSettings,
+    },
+    {
+      id: 'logout',
+      label: '退出登录',
+      icon: LogOut,
+      destructive: true,
+      action: onLogout,
+    },
+  ];
+
   return (
-    <div className="w-64 bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 text-emerald-50 shadow-2xl flex flex-col">
+    <div className="relative flex w-64 flex-col bg-gradient-to-b from-emerald-600 via-emerald-700 to-emerald-800 text-emerald-50 shadow-2xl">
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-emerald-900/30">
             <img src="/logo.svg" alt="Logo" className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">财枢智擎</h1>
+            <h1 className="text-2xl font-bold text-white">账策云帆</h1>
             <p className="text-sm text-emerald-100/90">Bank-Copilot</p>
           </div>
         </div>
@@ -543,6 +615,7 @@ function Sidebar({ items, active, onSelect }: SidebarProps) {
           {items.map((item) => (
             <li key={item.id}>
               <button
+                type="button"
                 onClick={() => onSelect(item.id as PanelId)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                   active === item.id
@@ -558,16 +631,66 @@ function Sidebar({ items, active, onSelect }: SidebarProps) {
         </ul>
       </nav>
 
-      <div className="p-6 border-t border-white/10">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
-            <User size={20} className="text-white" />
+      <div className="relative p-6 border-t border-white/10" ref={userMenuRef}>
+        <button
+          type="button"
+          onClick={() => setIsUserMenuOpen((prev) => !prev)}
+          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-left text-sm transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        >
+          <div className="flex items-center space-x-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white font-semibold">
+              Z
+            </div>
+            <div>
+              <p className="font-medium text-white">张会计</p>
+              <p className="text-xs text-emerald-100/80">@finance.ops</p>
+            </div>
           </div>
-          <div>
-            <p className="font-medium text-white">张会计</p>
-            <p className="text-xs text-emerald-100/90">会计主管</p>
+          <User size={18} className="text-emerald-100/80" />
+        </button>
+
+        {isUserMenuOpen ? (
+          <div className="absolute bottom-[calc(100%+12px)] left-6 right-6 z-30 rounded-3xl border border-white/15 bg-emerald-950/90 p-4 text-sm text-white shadow-2xl shadow-emerald-950/40 backdrop-blur-xl">
+            <div className="flex items-center gap-3 pb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-base font-semibold text-white shadow-inner shadow-emerald-900/30">
+                ZD
+              </div>
+              <div>
+                <p className="text-base font-semibold">张会计</p>
+                <p className="text-xs text-emerald-100/70">@finance.ops</p>
+              </div>
+            </div>
+            <div className="my-3 h-px bg-white/10" />
+            <div className="space-y-1">
+              {userMenuItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    item.action();
+                    setIsUserMenuOpen(false);
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition',
+                    item.destructive
+                      ? 'text-red-100 hover:bg-red-500/20 hover:text-white'
+                      : 'text-emerald-50 hover:bg-white/10',
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className="h-4 w-4 opacity-80" />
+                    <div>
+                      <p className="text-sm font-medium">{item.label}</p>
+                      {item.description ? (
+                        <p className="text-xs text-emerald-100/70">{item.description}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </div>
   );
@@ -612,16 +735,98 @@ function DashboardHeader({ title, description }: DashboardHeaderProps) {
             3
           </span>
         </div>
-
-        <Link
-          href="/login"
-          className="flex items-center space-x-2 rounded-lg border border-emerald-500 px-4 py-2 font-semibold text-emerald-600 transition-colors hover:bg-emerald-50"
-        >
-          <LogOut size={18} />
-          <span>退出登录</span>
-        </Link>
       </div>
     </header>
+  );
+}
+
+type SystemSettingsDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+function SystemSettingsDialog({ open, onOpenChange }: SystemSettingsDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl border-emerald-100 bg-white/95">
+        <DialogHeader>
+          <DialogTitle className="text-2xl text-gray-900">系统设置</DialogTitle>
+          <DialogDescription className="text-gray-500">
+            调整偏好、通知与集成配置，帮助团队在一个面板中完成常用的运维动作。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 py-2">
+          <section className="rounded-3xl border border-emerald-100/70 bg-emerald-50/40 p-4">
+            <p className="text-sm font-semibold text-emerald-900">通知策略</p>
+            <p className="text-xs text-emerald-700/80">同步账务异常、AI 工作区状态与审批提醒。</p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <Label htmlFor="notify-email" className="text-xs text-emerald-900/80">
+                  通知邮箱
+                </Label>
+                <Input
+                  id="notify-email"
+                  defaultValue="ops-team@bankcopilot.cn"
+                  className="mt-1 bg-white/90"
+                  placeholder="name@example.com"
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">即时提醒</p>
+                  <p className="text-xs text-gray-500">新增 AI 会话或知识库写入时同步推送</p>
+                </div>
+                <Switch defaultChecked className="data-[state=checked]:bg-emerald-500" />
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">周报汇总</p>
+                  <p className="text-xs text-gray-500">每周一 09:00 自动发送执行摘要</p>
+                </div>
+                <Switch defaultChecked={false} className="data-[state=checked]:bg-emerald-500" />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-gray-100 bg-gray-50/60 p-4">
+            <p className="text-sm font-semibold text-gray-900">安全与集成</p>
+            <p className="text-xs text-gray-500">可配置单点登录、Webhook 以及审计策略。</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <Label htmlFor="webhook" className="text-xs text-gray-500">
+                  Webhook Endpoint
+                </Label>
+                <Input
+                  id="webhook"
+                  placeholder="https://"
+                  defaultValue="https://api.bankcopilot.cn/hooks/accounting"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="audit-note" className="text-xs text-gray-500">
+                  审计备注
+                </Label>
+                <Textarea
+                  id="audit-note"
+                  className="mt-1 min-h-[90px] resize-none"
+                  placeholder="记录本次配置变更的背景与执行人"
+                  defaultValue="由财务共享中心统一维护访问白名单。"
+                />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">保存设置</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

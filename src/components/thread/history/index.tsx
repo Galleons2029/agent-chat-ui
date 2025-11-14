@@ -102,39 +102,53 @@ export default function ThreadHistory() {
 
   return (
     <>
-      <aside className="shadow-inner-right relative hidden h-full min-h-0 w-[320px] shrink-0 flex flex-col overflow-hidden rounded-tr-3xl border-r border-emerald-50/80 bg-white/90 pb-6 pt-0 backdrop-blur lg:flex">
+      <aside className="shadow-inner-right relative hidden h-full min-h-0 w-[320px] shrink-0 flex flex-col overflow-hidden rounded-tr-3xl bg-gradient-to-b from-white via-emerald-50/20 to-white/95 pb-6 pt-0 text-emerald-950 backdrop-blur-xl lg:flex">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-5 -top-5 h-5 rounded-t-3xl bg-white shadow-[0_20px_45px_rgba(16,185,129,0.25)]"
+          className="pointer-events-none absolute inset-0 rounded-tr-3xl border border-white/60"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-4 right-0 w-[3px] rounded-full bg-gradient-to-b from-transparent via-emerald-200 to-transparent"
+          className="pointer-events-none absolute inset-0 rounded-tr-3xl ring-1 ring-inset ring-emerald-100/60"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-5 -top-6 h-6 rounded-t-3xl bg-white/90 shadow-[0_25px_60px_rgba(16,185,129,0.25)]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-4 right-0 w-[2px] rounded-full bg-gradient-to-b from-transparent via-emerald-300/80 to-transparent blur-[0.5px]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-10 -right-6 w-16 bg-gradient-to-b from-emerald-500/15 via-emerald-400/5 to-emerald-500/15 blur-3xl"
         />
 
-        <div className="flex w-full items-center justify-between border-b border-emerald-50/60 px-5 pb-3 pt-3">
-          <h1 className="text-lg font-semibold tracking-tight text-emerald-950">
-            对话历史
-          </h1>
-          <Button
-            className="hover:bg-gray-100"
-            variant="ghost"
-            onClick={() => setChatHistoryOpen((p) => !p)}
-          >
-            {chatHistoryOpen ? (
-              <PanelRightOpen className="size-5" />
+        <div className="relative z-10 flex h-full flex-col">
+          <div className="flex w-full items-center justify-between border-b border-white/40 px-5 pb-3 pt-3">
+            <h1 className="text-lg font-semibold tracking-tight">
+              对话历史
+            </h1>
+            <Button
+              className="hover:bg-gray-100"
+              variant="ghost"
+              onClick={() => setChatHistoryOpen((p) => !p)}
+            >
+              {chatHistoryOpen ? (
+                <PanelRightOpen className="size-5" />
+              ) : (
+                <PanelRightClose className="size-5" />
+              )}
+            </Button>
+          </div>
+
+          <div className="flex-1 min-h-0 px-5 pt-4">
+            {threadsLoading ? (
+              <ThreadHistoryLoading />
             ) : (
-              <PanelRightClose className="size-5" />
+              <ThreadList threads={threads} />
             )}
-          </Button>
-        </div>
-
-        <div className="flex-1 min-h-0 px-5 pt-4">
-          {threadsLoading ? (
-            <ThreadHistoryLoading />
-          ) : (
-            <ThreadList threads={threads} />
-          )}
+          </div>
         </div>
       </aside>
       <div className="lg:hidden">

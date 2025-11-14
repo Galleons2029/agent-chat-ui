@@ -16,7 +16,7 @@ export function BrandMark({ className, glow = true, ...props }: BrandMarkProps) 
         className,
       )}
     >
-      财枢智擎
+      账策云帆
     </span>
   );
 }

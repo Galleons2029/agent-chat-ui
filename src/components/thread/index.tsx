@@ -42,6 +42,8 @@ type ThreadProps = {
   className?: string;
 };
 
+const HISTORY_PANEL_WIDTH = 320;
+
 function StickyToBottomContent(props: {
   content: ReactNode;
   footer?: ReactNode;
@@ -231,24 +233,21 @@ export function Thread({ className }: ThreadProps = {}) {
     <div className={cn("flex h-screen w-full overflow-hidden bg-gray-50", className)}>
       <div className="relative hidden lg:flex">
         <motion.div
-          className="absolute z-20 h-full overflow-hidden border-r bg-white"
-          style={{ width: 300 }}
+          className="absolute z-20 h-full overflow-visible"
+          style={{ width: HISTORY_PANEL_WIDTH }}
           animate={
             isLargeScreen
-              ? { x: chatHistoryOpen ? 0 : -300 }
-              : { x: chatHistoryOpen ? 0 : -300 }
+              ? { x: chatHistoryOpen ? 0 : -HISTORY_PANEL_WIDTH }
+              : { x: chatHistoryOpen ? 0 : -HISTORY_PANEL_WIDTH }
           }
-          initial={{ x: -300 }}
+          initial={{ x: -HISTORY_PANEL_WIDTH }}
           transition={
             isLargeScreen
               ? { type: "spring", stiffness: 300, damping: 30 }
               : { duration: 0 }
           }
         >
-          <div
-            className="relative h-full"
-            style={{ width: 300 }}
-          >
+          <div className="relative h-full w-full">
             <ThreadHistory />
           </div>
         </motion.div>
@@ -267,10 +266,14 @@ export function Thread({ className }: ThreadProps = {}) {
           )}
           layout={isLargeScreen}
           animate={{
-            marginLeft: chatHistoryOpen ? (isLargeScreen ? 300 : 0) : 0,
+            marginLeft: chatHistoryOpen
+              ? isLargeScreen
+                ? HISTORY_PANEL_WIDTH
+                : 0
+              : 0,
             width: chatHistoryOpen
               ? isLargeScreen
-                ? "calc(100% - 300px)"
+                ? `calc(100% - ${HISTORY_PANEL_WIDTH}px)`
                 : "100%"
               : "100%",
           }}

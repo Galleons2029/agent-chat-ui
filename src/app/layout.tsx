@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "财枢智擎 | 银行业智能助手",
-  description: "财枢智擎：为银行培训、知识管理与财务分析打造的一体化智能助手体验。",
+  title: "账策云帆 | 银行业智能助手",
+  description: "账策云帆：为银行培训、知识管理与财务分析打造的一体化智能助手体验。",
 };
 
 export default function RootLayout({

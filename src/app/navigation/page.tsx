@@ -5,7 +5,7 @@ import { BrandMark } from '@/components/brand-mark';
 const shortcuts = [
   {
     title: '智能对话',
-    description: '与财枢智擎协同处理业务、解答疑问',
+    description: '与账策云帆协同处理业务、解答疑问',
     href: '/chat',
     icon: MessageCircle,
   },
