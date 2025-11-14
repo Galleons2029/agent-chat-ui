@@ -27,9 +27,14 @@ export function MermaidDiagram({ chart, className = "" }: MermaidDiagramProps) {
         theme: "default",
         securityLevel: "loose",
         fontFamily: "inherit",
+        flowchart: {
+          useMaxWidth: false,
+          wrappingWidth: 660, // double the previous width so the rendered blocks look twice as large
+        },
         // 设置透明背景
         themeVariables: {
           background: "transparent",
+        
         },
       });
       mermaidInitialized = true;
@@ -83,31 +88,9 @@ export function MermaidDiagram({ chart, className = "" }: MermaidDiagramProps) {
       className="my-4 rounded-lg p-0"
       style={{ backgroundColor: "transparent" }}
     >
-      {/* 折叠按钮 */}
-      <div className="mb-2 flex items-center justify-end">
-        <button
-          onClick={() => setShowSource(!showSource)}
-          className="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
-          title={showSource ? "隐藏源代码" : "查看源代码"}
-        >
-          <Code2 size={14} />
-          <span>{showSource ? "隐藏" : "查看"}源代码</span>
-          {showSource ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
-      </div>
+      
 
-      {/* 源代码展示 */}
-      {showSource && (
-        <div className="mb-3 overflow-auto rounded-lg border border-gray-300 bg-gray-50 p-3">
-          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-gray-600">
-            <Code2 size={12} />
-            <span>Mermaid 源代码</span>
-          </div>
-          <pre className="overflow-auto text-xs text-gray-800">
-            <code>{chart}</code>
-          </pre>
-        </div>
-      )}
+     
 
       {/* 图表渲染区域 */}
       <div

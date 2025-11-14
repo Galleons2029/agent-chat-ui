@@ -1,5 +1,5 @@
 'use client';
-
+import { AccountPanel } from '@/app/account/account-panel';
 import { type ReactNode, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -71,7 +71,7 @@ const navigationItems = [
   { id: 'ai', label: 'AI 助手', icon: Bot, color: 'bg-emerald-500' },
   { id: 'dashboard', label: '数据看板', icon: Home, color: 'bg-emerald-500' },
   { id: 'knowledge', label: '知识库', icon: Database, color: 'bg-emerald-500' },
-  { id: 'accounts', label: '总分查账', icon: FileText, color: 'bg-emerald-500' },
+  { id: 'account', label: '总分查账', icon: FileText, color: 'bg-emerald-500' },
   { id: 'analysis', label: '数据分析', icon: BarChart2, color: 'bg-emerald-500' },
   { id: 'settings', label: '系统设置', icon: Settings, color: 'bg-emerald-500' },
 ] as const satisfies NavigationItem[];
@@ -165,20 +165,10 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
       />
     ),
   },
-  accounts: {
+  account: {
     title: '总分查账',
     description: '统一的账户视图，支持按条件筛选与导出',
-    render: () => (
-      <FeaturePlaceholder
-        icon={FileText}
-        title="总分查账"
-        description="实时检索企业账户、余额和授权信息，后续可接入筛选、导出与提醒能力。"
-        actions={[
-          { label: '配置筛选条件', variant: 'primary' },
-          { label: '导出模板设置', variant: 'secondary' },
-        ]}
-      />
-    ),
+    render: () => <AccountPanel variant="dashboard"  />,
   },
   analysis: {
     title: '数据分析',
