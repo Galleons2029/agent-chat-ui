@@ -63,7 +63,7 @@ function ScrollToBottom(props: { className?: string }) {
       onClick={() => scrollToBottom()}
     >
       <ArrowDown className="h-4 w-4" />
-      <span>Scroll to bottom</span>
+      <span>滚动到底部</span>
     </Button>
   );
 }
@@ -107,10 +107,10 @@ export function ThreadEmbedded() {
       }
 
       lastError.current = message;
-      toast.error("An error occurred. Please try again.", {
+      toast.error("发生错误，请稍后重试。", {
         description: (
           <p>
-            <strong>Error:</strong> <code>{message}</code>
+            <strong>错误详情：</strong> <code>{message}</code>
           </p>
         ),
         richColors: true,

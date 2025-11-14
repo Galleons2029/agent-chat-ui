@@ -65,6 +65,9 @@ async function checkGraphStatus(
   }
 }
 
+const SUPPRESS_AI_CHAT_INIT_TOAST =
+  process.env.NEXT_PUBLIC_SUPPRESS_AI_CHAT_INIT_TOAST === "true";
+
 const StreamSession = ({
   children,
   apiKey,
@@ -101,21 +104,36 @@ const StreamSession = ({
   });
 
   useEffect(() => {
+    let isMounted = true;
+
     checkGraphStatus(apiUrl, apiKey).then((ok) => {
-      if (!ok) {
-        toast.error("Failed to connect to LangGraph server", {
-          description: () => (
-            <p>
-              Please ensure your graph is running at <code>{apiUrl}</code> and
-              your API key is correctly set (if connecting to a deployed graph).
-            </p>
-          ),
-          duration: 10000,
-          richColors: true,
-          closeButton: true,
-        });
+      if (!isMounted || ok) {
+        return;
       }
+
+      if (SUPPRESS_AI_CHAT_INIT_TOAST) {
+        console.warn(
+          "Failed to connect to LangGraph server but NEXT_PUBLIC_SUPPRESS_AI_CHAT_INIT_TOAST is enabled.",
+        );
+        return;
+      }
+
+      toast.error("Failed to connect to LangGraph server", {
+        description: () => (
+          <p>
+            Please ensure your graph is running at <code>{apiUrl}</code> and
+            your API key is correctly set (if connecting to a deployed graph).
+          </p>
+        ),
+        duration: 10000,
+        richColors: true,
+        closeButton: true,
+      });
     });
+
+    return () => {
+      isMounted = false;
+    };
   }, [apiKey, apiUrl]);
 
   return (

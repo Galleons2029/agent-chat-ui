@@ -164,7 +164,7 @@ export default function ThreadHistory() {
             className="flex lg:hidden"
           >
             <SheetHeader>
-              <SheetTitle>Thread History</SheetTitle>
+              <SheetTitle>对话历史</SheetTitle>
             </SheetHeader>
             <ThreadList
               threads={threads}

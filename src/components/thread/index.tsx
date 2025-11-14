@@ -80,7 +80,7 @@ function ScrollToBottom(props: { className?: string }) {
       onClick={() => scrollToBottom()}
     >
       <ArrowDown className="h-4 w-4" />
-      <span>Scroll to bottom</span>
+      <span>滚动到底部</span>
     </Button>
   );
 }
@@ -140,10 +140,10 @@ export function Thread({ className }: ThreadProps = {}) {
 
       // Message is defined, and it has not been logged yet. Save it, and send the error
       lastError.current = message;
-      toast.error("An error occurred. Please try again.", {
+      toast.error("发生错误，请稍后重试。", {
         description: (
           <p>
-            <strong>Error:</strong> <code>{message}</code>
+            <strong>错误详情：</strong> <code>{message}</code>
           </p>
         ),
         richColors: true,
@@ -339,7 +339,7 @@ export function Thread({ className }: ThreadProps = {}) {
                     height={32}
                   />
                   <span className="text-xl font-semibold tracking-tight">
-                    Agent Chat
+                    苏州银行助手
                   </span>
                 </motion.button>
               </div>
@@ -348,7 +348,7 @@ export function Thread({ className }: ThreadProps = {}) {
                 <TooltipIconButton
                   size="lg"
                   className="p-4"
-                  tooltip="New thread"
+                  tooltip="新建会话"
                   variant="ghost"
                   onClick={() => setThreadId(null)}
                 >
@@ -450,7 +450,7 @@ export function Thread({ className }: ThreadProps = {}) {
                             form?.requestSubmit();
                           }
                         }}
-                        placeholder="Type your message..."
+                        placeholder="请输入你的问题..."
                         className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
@@ -466,7 +466,7 @@ export function Thread({ className }: ThreadProps = {}) {
                               htmlFor="render-tool-calls"
                               className="text-sm text-gray-600"
                             >
-                              Hide Tool Calls
+                              隐藏工具调用
                             </Label>
                           </div>
                         </div>
@@ -476,7 +476,7 @@ export function Thread({ className }: ThreadProps = {}) {
                         >
                           <Plus className="size-5 text-gray-600" />
                           <span className="text-sm text-gray-600">
-                            Upload PDF or Image
+                            上传 PDF 或图片
                           </span>
                         </Label>
                         <input
@@ -494,7 +494,7 @@ export function Thread({ className }: ThreadProps = {}) {
                             className="ml-auto"
                           >
                             <LoaderCircle className="h-4 w-4 animate-spin" />
-                            Cancel
+                            取消
                           </Button>
                         ) : (
                           <Button
@@ -505,7 +505,7 @@ export function Thread({ className }: ThreadProps = {}) {
                               (!input.trim() && contentBlocks.length === 0)
                             }
                           >
-                            Send
+                            发送
                           </Button>
                         )}
                       </div>

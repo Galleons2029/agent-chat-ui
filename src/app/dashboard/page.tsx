@@ -398,7 +398,7 @@ function AIChatPanel({ guidanceIntent, onClearGuidance }: AIChatPanelProps) {
           <div className="flex h-full items-center justify-center bg-white/60">
             <div className="text-center">
               <Bot className="mx-auto mb-4 h-12 w-12 animate-pulse text-emerald-500" />
-              <p className="text-gray-500">Loading AI Assistant...</p>
+              <p className="text-gray-500">AI 助手正在加载...</p>
             </div>
           </div>
         }
