@@ -22,19 +22,14 @@ export function MermaidDiagram({ chart, className = "" }: MermaidDiagramProps) {
   useEffect(() => {
     // 初始化 mermaid（只需要一次）
     if (!mermaidInitialized) {
-     mermaid.initialize({
+      mermaid.initialize({
         startOnLoad: false,
         theme: "default",
         securityLevel: "loose",
         fontFamily: "inherit",
-        flowchart: {
-          useMaxWidth: false,
-          wrappingWidth: 660, // double the previous width so the rendered blocks look twice as large
-        },
         // 设置透明背景
         themeVariables: {
           background: "transparent",
-
         },
       });
       mermaidInitialized = true;
