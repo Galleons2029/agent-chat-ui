@@ -21,7 +21,7 @@ import {
 import { rawData, suggestionMap, buildFallbackSteps, mermaidData } from '@/app/account/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { MermaidDiagram } from '@/components/thread/mermaid-diagram';
 
@@ -51,10 +51,22 @@ type NavigationItem = {
   href?: string;
 };
 
+const PRIMARY_OWNER = '张会计';
+const ownerPool = [PRIMARY_OWNER, '李财务', '王复核', '赵稽核'];
+
+const classifyRisk = (amt: number) => (amt > 100000 ? '高风险' : amt > 1000 ? '中风险' : '低风险');
+const statusFromDiff = (diffAbs: number, index: number): Row['status'] => {
+  if (diffAbs > 80000) return '待处理';
+  if (diffAbs > 30000) return index % 2 === 0 ? '待处理' : '处理中';
+  return index % 3 === 0 ? '处理中' : '已解决';
+};
+
 const mappedRows: Row[] = rawData.map((d, i) => {
   const gnl = Number(d.gnl_ldgr_bal);
   const sbact = Number(d.sbact_acct_bal);
   const diff = Number((d.tot_mint_dif || '0').toString().replace(/\s+/g, ''));
+  const diffAbs = Math.abs(diff);
+  const owner = ownerPool[i % ownerPool.length];
   const base = Math.max(Math.abs(gnl || 0), Math.abs(sbact || 0)) || 1;
   return {
     id: `REC-${d.dt}-${String(i + 1).padStart(3, '0')}`,
@@ -66,14 +78,31 @@ const mappedRows: Row[] = rawData.map((d, i) => {
     gnl,
     amount: diff,
     pct: diff / base,
-    status: '待处理',
-    owner: '张会计',
-    risk: '中风险',
+    status: statusFromDiff(diffAbs, i),
+    owner,
+    risk: classifyRisk(diffAbs),
     sbactStr: d.sbact_acct_bal,
     gnlStr: d.gnl_ldgr_bal,
     diffStr: d.tot_mint_dif,
   };
 });
+
+const datasetStats = (() => {
+  let pending = 0;
+  let processing = 0;
+  let resolved = 0;
+  let ownerCases = 0;
+  let highRiskCases = 0;
+  for (const row of mappedRows) {
+    if (row.status === '待处理') pending += 1;
+    else if (row.status === '处理中') processing += 1;
+    else if (row.status === '已解决') resolved += 1;
+    if (row.owner === PRIMARY_OWNER) ownerCases += 1;
+    if (row.risk === '高风险') highRiskCases += 1;
+  }
+  return { pending, processing, resolved, ownerCases, highRiskCases };
+})();
+const totalDiffAmount = sumAbs(mappedRows.map((r) => r.amount));
 
 const extraCurrencies = ['DAU', 'DHK', 'DUS', 'PGB', 'REU', 'YCN', 'YJP'];
 const currencySummary = (() => {
@@ -87,10 +116,9 @@ const currencySummary = (() => {
   for (const c of extraCurrencies) {
     if (!map.has(c)) map.set(c, { amount: 0, count: 0 });
   }
-  const toRisk = (amt: number) => (amt > 100000 ? '高风险' : amt > 1000 ? '中风险' : '低风险');
   return Array.from(map.entries())
     .sort((a, b) => b[1].amount - a[1].amount)
-    .map(([ccy, v]) => ({ ccy, amount: v.amount, count: v.count, risk: toRisk(v.amount) }));
+    .map(([ccy, v]) => ({ ccy, amount: v.amount, count: v.count, risk: classifyRisk(v.amount) }));
 })();
 
 export type AccountPanelVariant = 'page' | 'dashboard';
@@ -99,11 +127,76 @@ type AccountPanelProps = {
   variant?: AccountPanelVariant;
 };
 
+type QuickFilterPreset = {
+  id: 'all' | 'pending' | 'risk' | 'mine';
+  label: string;
+  helper: string;
+  query: string;
+};
+
+const accountNavigationItems: NavigationItem[] = [
+  { id: 'dashboard', label: '数据驾驶舱', icon: Home, color: 'text-white/80', href: '/dashboard' },
+  { id: 'ai', label: 'AI 助手', icon: Bot, color: 'text-white/80', href: '/dashboard' },
+  { id: 'knowledge', label: '知识库', icon: Database, color: 'text-white/80', href: '/dashboard' },
+  { id: 'accounts', label: '总分查账', icon: FileText, color: 'text-white', href: '/account' },
+  { id: 'analysis', label: '差异分析', icon: BarChart2, color: 'text-white/80', href: '/dashboard' },
+  { id: 'settings', label: '系统配置', icon: Settings, color: 'text-white/80', href: '/settings' },
+];
+
 export function AccountPanel({ variant = 'page' }: AccountPanelProps) {
   const [query, setQuery] = useState('');
+  const [activePreset, setActivePreset] = useState<QuickFilterPreset['id'] | 'custom'>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 9;
+  const totalRows = mappedRows.length || 1;
+  const quickFilterPresets: QuickFilterPreset[] = [
+    { id: 'all', label: '全部差异', helper: `${mappedRows.length} 条`, query: '' },
+    { id: 'pending', label: '待处理', helper: `${datasetStats.pending} 条`, query: 'status:待处理' },
+    { id: 'risk', label: '高风险', helper: `${datasetStats.highRiskCases} 条`, query: 'risk:高风险' },
+    { id: 'mine', label: '我的任务', helper: `${datasetStats.ownerCases} 条`, query: `owner:${PRIMARY_OWNER}` },
+  ];
+  const overviewCards = [
+    {
+      title: '待处理',
+      value: `${datasetStats.pending}`,
+      helper: `占比 ${Math.round((datasetStats.pending / totalRows) * 100)}%`,
+      icon: <BadgeAlert className="text-amber-500" size={18} />,
+    },
+    {
+      title: '处理中',
+      value: `${datasetStats.processing}`,
+      helper: `平均耗时 2.4 小时`,
+      icon: <Bell className="text-sky-500" size={18} />,
+    },
+    {
+      title: '已解决',
+      value: `${datasetStats.resolved}`,
+      helper: '本周完成 +5',
+      icon: <CheckCircle2 className="text-emerald-500" size={18} />,
+    },
+    {
+      title: '差异总额',
+      value: `¥${formatMoney(totalDiffAmount)}`,
+      helper: `高风险 ${datasetStats.highRiskCases} 条`,
+      icon: <CircleDollarSign className="text-emerald-600" size={18} />,
+    },
+  ];
+
+  const handleSearchChange = (value: string) => {
+    setQuery(value);
+    const matched = quickFilterPresets.find((preset) => preset.query === value);
+    setActivePreset(matched ? matched.id : 'custom');
+  };
+
+  const handlePresetSelect = (presetId: QuickFilterPreset['id']) => {
+    const preset = quickFilterPresets.find((p) => p.id === presetId);
+    if (!preset) return;
+    setActivePreset(presetId);
+    setQuery(preset.query);
+  };
+  const spotlightRows = useMemo(() => mappedRows.filter((row) => row.risk === '高风险').slice(0, 3), []);
+  const activeRow = openId ? mappedRows.find((row) => row.id === openId) ?? null : null;
 
   const filtered = useMemo(() => {
     const rows = mappedRows;
@@ -183,34 +276,84 @@ export function AccountPanel({ variant = 'page' }: AccountPanelProps) {
   }, [query]);
 
   const panelBody = (
-    <>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <SummaryCard title="待处理" value={`${filtered.length}`} icon={<BadgeAlert className="text-amber-500" size={20} />} />
-        <SummaryCard
-          title="高风险币种"
-          value={`${currencySummary.filter((c) => c.risk === '高风险').length}`}
-          icon={<AlertTriangle className="text-red-500" size={20} />}
-        />
-        <SummaryCard title="已解决" value="0" icon={<CheckCircle2 className="text-emerald-500" size={20} />} />
-        <SummaryCard title="差异总额" value={`¥${formatMoney(sumAbs(mappedRows.map((r) => r.amount)))}`} icon={<CircleDollarSign className="text-emerald-600" size={20} />} />
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-emerald-600">总分查账</p>
+            <h2 className="mt-2 text-2xl font-semibold text-gray-900">差异监控工作台</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              当前追踪 {filtered.length} 条记录，聚焦高风险币种与重点机构的账务波动。
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-white/70 px-4 py-1 text-sm font-semibold text-emerald-700">
+              今日提醒 3
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full text-emerald-600 hover:bg-white"
+              aria-label="查看提醒"
+            >
+              <Bell className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+          <SearchInput value={query} onChange={handleSearchChange} className="w-full lg:flex-1" />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+              导出报表
+            </Button>
+            <Button className="bg-emerald-600 text-white hover:bg-emerald-700">派单与复核</Button>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          {quickFilterPresets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => handlePresetSelect(preset.id)}
+              className={`rounded-2xl border px-4 py-2 text-left text-sm transition ${
+                activePreset === preset.id
+                  ? 'border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                  : 'border-emerald-100 bg-white/80 text-gray-600 hover:border-emerald-200 hover:text-emerald-700'
+              }`}
+            >
+              <div className="font-semibold">{preset.label}</div>
+              <div className="text-xs opacity-70">{preset.helper}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>差异明细（{filtered.length}）</CardTitle>
-              <CardDescription>按机构号、科目与币种查看总分不平</CardDescription>
-            </div>
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <SearchInput value={query} onChange={setQuery} className="w-full sm:w-64 lg:w-72" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+        {overviewCards.map((card) => (
+          <SummaryCard key={card.title} title={card.title} value={card.value} helper={card.helper} icon={card.icon} />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2.2fr,1fr]">
+        <Card className="rounded-3xl border border-gray-100 bg-white/90 shadow-sm">
+          <CardHeader className="gap-2 border-b border-gray-100 px-6 py-5">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold text-gray-900">差异明细</CardTitle>
+                <CardDescription>按机构、科目与币种查看最新不平列表</CardDescription>
+              </div>
+              <div className="text-xs text-gray-500">
+                展示 {pagedRows.length} / {filtered.length} 条
+              </div>
             </div>
           </CardHeader>
           <CardContent className="px-0">
             <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+              <table className="min-w-full text-sm text-gray-700">
                 <thead>
-                  <tr className="border-y text-muted-foreground">
+                  <tr className="border-y border-gray-100 bg-gray-50/60 text-gray-500">
                     <Th>机构号</Th>
                     <Th className="text-left">科目编号</Th>
                     <Th>币种</Th>
@@ -224,30 +367,31 @@ export function AccountPanel({ variant = 'page' }: AccountPanelProps) {
                 </thead>
                 <tbody>
                   {pagedRows.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0 hover:bg-muted/40">
+                    <tr key={r.id} className="border-b border-gray-100 last:border-0 hover:bg-emerald-50/40">
                       <Td>{r.org}</Td>
                       <Td>
                         <div className="flex flex-col">
-                          <span className="font-medium">{r.subjectNo}</span>
+                          <span className="font-medium text-gray-900">{r.subjectNo}</span>
+                          <span className="text-xs text-gray-500">{r.id}</span>
                         </div>
                       </Td>
                       <Td>
                         <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-600">{r.ccy}</span>
                       </Td>
                       <Td className="text-right">
-                        <span className={`${r.sbact >= 0 ? 'text-red-500' : 'text-emerald-600'} font-semibold`}>
+                        <span className={`${r.sbact >= 0 ? 'text-rose-500' : 'text-emerald-600'} font-semibold`}>
                           {r.sbact >= 0 ? '+' : '-'}
                           {formatMoney(Math.abs(r.sbact))}
                         </span>
                       </Td>
                       <Td className="text-right">
-                        <span className={`${r.gnl >= 0 ? 'text-red-500' : 'text-emerald-600'} font-semibold`}>
+                        <span className={`${r.gnl >= 0 ? 'text-rose-500' : 'text-emerald-600'} font-semibold`}>
                           {r.gnl >= 0 ? '+' : '-'}
                           {formatMoney(Math.abs(r.gnl))}
                         </span>
                       </Td>
                       <Td className="text-right">
-                        <span className={`${r.amount >= 0 ? 'text-red-500' : 'text-emerald-600'} font-semibold`}>
+                        <span className={`${r.amount >= 0 ? 'text-rose-500' : 'text-emerald-600'} font-semibold`}>
                           {r.amount >= 0 ? '+' : '-'}
                           {formatMoney(Math.abs(r.amount))}
                         </span>
@@ -258,21 +402,16 @@ export function AccountPanel({ variant = 'page' }: AccountPanelProps) {
                       </Td>
                       <Td>{r.owner}</Td>
                       <Td className="pr-6 text-right">
-                        <Dialog open={openId === r.id} onOpenChange={(o) => setOpenId(o ? r.id : null)}>
-                          <DialogTrigger asChild>
-                            <Button variant="link" className="h-auto p-0 text-emerald-600">
-                              详情
-                            </Button>
-                          </DialogTrigger>
-                          <FullDetailDialog row={r} />
-                        </Dialog>
+                        <Button variant="link" className="h-auto p-0 text-emerald-600" onClick={() => setOpenId(r.id)}>
+                          详情
+                        </Button>
                       </Td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between border-t px-6 py-4 text-sm text-gray-500">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 text-sm text-gray-500">
               <span>
                 第 {page} / {totalPages} 页 · 共 {filtered.length} 条
               </span>
@@ -288,37 +427,128 @@ export function AccountPanel({ variant = 'page' }: AccountPanelProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">币种统计</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {currencySummary.map((c) => (
-              <div key={c.ccy} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-sm font-semibold">{c.ccy}</div>
-                  <div className="text-sm">
-                    <div className="font-medium">{c.ccy}</div>
-                    <div className="text-muted-foreground">科目数 {c.count}</div>
+        <div className="space-y-6">
+          <Card className="rounded-3xl border border-gray-100 bg-white/90 shadow-sm">
+            <CardHeader className="gap-1 px-6 py-5">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                币种统计
+              </CardTitle>
+              <CardDescription>差异金额越高的币种越需要复核</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {currencySummary.map((c) => (
+                <div key={c.ccy} className="flex items-center justify-between rounded-2xl border border-gray-100 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50 text-sm font-semibold">{c.ccy}</div>
+                    <div className="text-sm">
+                      <div className="font-semibold text-gray-900">{c.ccy}</div>
+                      <div className="text-xs text-gray-500">科目数 {c.count}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold text-gray-900">¥{formatMoney(c.amount)}</div>
+                    <RiskPill risk={c.risk as any} />
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-semibold">¥{formatMoney(c.amount)}</div>
-                  <RiskPill risk={c.risk as any} />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl border border-gray-100 bg-white/90 shadow-sm">
+            <CardHeader className="gap-1 px-6 py-5">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <GitBranch className="h-4 w-4 text-emerald-500" />
+                高风险提醒
+              </CardTitle>
+              <CardDescription>以下条目建议优先派单处理</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {spotlightRows.length === 0 ? (
+                <p className="text-sm text-gray-500">暂无高风险条目，保持关注。</p>
+              ) : (
+                spotlightRows.map((row) => (
+                  <div key={row.id} className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 shadow-inner">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {row.org} · {row.ccy}
+                        </p>
+                        <p className="text-xs text-gray-500">科目 {row.subjectNo}</p>
+                      </div>
+                      <RiskPill risk={row.risk as any} />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm">
+                      <span className="text-gray-500">差异金额</span>
+                      <span className="font-semibold text-rose-500">
+                        {row.amount >= 0 ? '+' : '-'}¥{formatMoney(Math.abs(row.amount))}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">负责人：{row.owner}</p>
+                    <Button variant="ghost" size="sm" className="mt-3 px-0 text-emerald-600" onClick={() => setOpenId(row.id)}>
+                      查看详情
+                    </Button>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </>
+    </section>
+  );
+  const detailDialog = (
+    <Dialog open={Boolean(activeRow)} onOpenChange={(next) => (!next ? setOpenId(null) : undefined)}>
+      {activeRow ? <FullDetailDialog row={activeRow} /> : null}
+    </Dialog>
   );
 
   if (variant === 'dashboard') {
-    return <section className="space-y-6">{panelBody}</section>;
+    return (
+      <>
+        <section className="space-y-6">{panelBody}</section>
+        {detailDialog}
+      </>
+    );
   }
 
-
+  return (
+    <>
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar items={accountNavigationItems} active="accounts" />
+        <div className="flex flex-1 flex-col">
+          <header className="border-b border-gray-100 bg-white/80 px-8 py-6 backdrop-blur">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-emerald-600">Account Control</p>
+                <h1 className="mt-2 text-3xl font-semibold text-gray-900">总分查账中心</h1>
+                <p className="text-sm text-gray-500">统一处理总分不平，按风险与责任人分发任务。</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variant="outline" className="border-emerald-200 text-emerald-700">
+                  <FileText className="mr-2 h-4 w-4" />
+                  生成报表
+                </Button>
+                <Button className="bg-emerald-600 text-white hover:bg-emerald-700">
+                  <CircleDollarSign className="mr-2 h-4 w-4" />
+                  新建流程
+                </Button>
+              </div>
+            </div>
+          </header>
+          <main className="flex-1 overflow-y-auto px-6 py-6 lg:px-10">
+            {panelBody}
+            <div className="mt-8 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-6 py-4 text-sm text-emerald-700">
+              提示：支持使用 <code className="rounded bg-white/80 px-1 py-0.5 text-xs">org:</code>、
+              <code className="rounded bg-white/80 px-1 py-0.5 text-xs">sbj:</code>、
+              <code className="rounded bg-white/80 px-1 py-0.5 text-xs">ccy:</code> 等条件组合搜索。
+            </div>
+          </main>
+        </div>
+      </div>
+      {detailDialog}
+    </>
+  );
 }
 
 function SearchInput({ value, onChange, className }: { value: string; onChange: (value: string) => void; className?: string }) {
@@ -375,17 +605,18 @@ function Sidebar({ items, active }: { items: NavigationItem[]; active: Navigatio
   );
 }
 
-function SummaryCard({ title, value, icon }: { title: string; value: string; icon?: React.ReactNode }) {
+function SummaryCard({ title, value, icon, helper }: { title: string; value: string; icon?: React.ReactNode; helper?: string }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between">
+    <div className="rounded-2xl border border-gray-100 bg-white/90 p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-sm text-muted-foreground">{title}</div>
-          <div className="mt-1 text-2xl font-semibold">{value}</div>
+          <div className="text-xs uppercase tracking-[0.25em] text-gray-400">{title}</div>
+          <div className="mt-2 text-2xl font-semibold text-gray-900">{value}</div>
+          {helper ? <div className="text-xs text-gray-500">{helper}</div> : null}
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">{icon}</div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-emerald-600">{icon}</div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -671,4 +902,3 @@ function buildMermaidFlowchartFromSteps(steps: string[]) {
   const classLine = `  class ${steps.map((_, idx) => `s${idx}`).join(',')} step`;
   return ['flowchart TD', '  classDef step fill:#ecfdf5,stroke:#34d399,stroke-width:1px', ...nodes, ...edges, classLine].join('\n');
 }
-
