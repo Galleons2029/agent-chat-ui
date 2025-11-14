@@ -22,7 +22,7 @@ export function MermaidDiagram({ chart, className = "" }: MermaidDiagramProps) {
   useEffect(() => {
     // 初始化 mermaid（只需要一次）
     if (!mermaidInitialized) {
-      mermaid.initialize({
+     mermaid.initialize({
         startOnLoad: false,
         theme: "default",
         securityLevel: "loose",
