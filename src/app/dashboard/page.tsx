@@ -1,5 +1,5 @@
 'use client';
-import { AccountPanel } from '@/app/account/account-panel';
+
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -336,7 +336,17 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
   accounts: {
     title: '总分查账',
     description: '统一的账户视图，支持按条件筛选与导出',
-    render: () => <AccountPanel variant="dashboard"  />,
+    render: () => (
+      <FeaturePlaceholder
+        icon={FileText}
+        title="总分查账"
+        description="实时检索企业账户、余额和授权信息，后续可接入筛选、导出与提醒能力。"
+        actions={[
+          { label: '配置筛选条件', variant: 'primary' },
+          { label: '导出模板设置', variant: 'secondary' },
+        ]}
+      />
+    ),
   },
   learning: {
     title: '个人学习进度',
