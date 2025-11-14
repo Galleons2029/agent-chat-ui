@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useState } from 'react';
+import Link from 'next/link';
 import {
   CartesianGrid,
   Cell,
@@ -28,6 +29,7 @@ import {
   TrendingUp,
   Users,
   ClipboardList,
+  LogOut,
 } from 'lucide-react';
 import { Thread } from "@/components/thread";
 import { StreamProvider } from "@/providers/Stream";
@@ -348,12 +350,13 @@ function DashboardHeader({ title, description }: DashboardHeaderProps) {
           </span>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-            <User size={16} className="text-gray-600" />
-          </div>
-          <span className="text-gray-800">张会计</span>
-        </div>
+        <Link
+          href="/login"
+          className="flex items-center space-x-2 rounded-lg border border-emerald-500 px-4 py-2 font-semibold text-emerald-600 transition-colors hover:bg-emerald-50"
+        >
+          <LogOut size={18} />
+          <span>退出登录</span>
+        </Link>
       </div>
     </header>
   );
