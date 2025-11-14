@@ -214,25 +214,36 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
 
 function AIChatPanel() {
   return (
-    <div className="h-[calc(100vh-180px)] overflow-hidden">
-      <React.Suspense fallback={
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <Bot className="w-12 h-12 text-emerald-500 mx-auto mb-4 animate-pulse" />
-            <p className="text-gray-500">Loading AI Assistant...</p>
+    <section className="relative flex h-full min-h-0 flex-col bg-gradient-to-b from-white via-emerald-50/40 to-emerald-50/5">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-10 top-0 h-8 -translate-y-6 rounded-t-3xl bg-white shadow-[0_30px_65px_-40px_rgba(5,150,105,0.75)]"
+      />
+
+      <React.Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center bg-white/60">
+            <div className="text-center">
+              <Bot className="mx-auto mb-4 h-12 w-12 animate-pulse text-emerald-500" />
+              <p className="text-gray-500">Loading AI Assistant...</p>
+            </div>
           </div>
-        </div>
-      }>
+        }
+      >
         <Toaster />
         <ThreadProvider>
           <StreamProvider>
             <ArtifactProvider>
-              <Thread />
+              <div className="flex flex-1 min-h-0 px-6 pb-6 pt-4">
+                <div className="relative flex h-full min-h-0 w-full overflow-hidden rounded-3xl border border-emerald-100/70 bg-white shadow-[0_25px_90px_-45px_rgba(4,120,87,0.8)]">
+                  <Thread className="!h-full min-h-0" />
+                </div>
+              </div>
             </ArtifactProvider>
           </StreamProvider>
         </ThreadProvider>
       </React.Suspense>
-    </div>
+    </section>
   );
 }
 
