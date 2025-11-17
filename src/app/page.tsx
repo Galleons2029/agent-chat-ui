@@ -319,11 +319,11 @@ export default function HomePage() {
                     href="/login"
                     className="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-8 py-4 text-lg font-semibold text-slate-900 shadow-[0_20px_45px_rgba(16,185,129,0.35)] hover:-translate-y-0.5 transition-transform"
                   >
-                    预约私享演示
+                    开始使用
                   </Link>
                   <button className="inline-flex items-center justify-center rounded-2xl border border-white/30 px-8 py-4 text-lg font-semibold text-white hover:bg-white/5">
                     <Play className="w-5 h-5 mr-2" />
-                    查看解决方案 Deck
+                    查看解决方案
                   </button>
                 </div>
                 <div className="mt-10 grid gap-6 sm:grid-cols-3">

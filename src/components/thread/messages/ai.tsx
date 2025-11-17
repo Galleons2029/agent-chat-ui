@@ -85,26 +85,31 @@ function parseAnthropicStreamedToolCalls(
 }
 
 interface InterruptProps {
-  interruptValue?: unknown;
+  interrupt?: unknown;
   isLastMessage: boolean;
   hasNoAIOrToolMessages: boolean;
 }
 
 function Interrupt({
-  interruptValue,
+  interrupt,
   isLastMessage,
   hasNoAIOrToolMessages,
 }: InterruptProps) {
+  const fallbackValue = Array.isArray(interrupt)
+    ? (interrupt as Record<string, any>[])
+    : (((interrupt as { value?: unknown } | undefined)?.value ??
+        interrupt) as Record<string, any>);
+
   return (
     <>
-      {isAgentInboxInterruptSchema(interruptValue) &&
+      {isAgentInboxInterruptSchema(interrupt) &&
         (isLastMessage || hasNoAIOrToolMessages) && (
-          <ThreadView interrupt={interruptValue} />
+          <ThreadView interrupt={interrupt} />
         )}
-      {interruptValue &&
-      !isAgentInboxInterruptSchema(interruptValue) &&
+      {interrupt &&
+      !isAgentInboxInterruptSchema(interrupt) &&
       (isLastMessage || hasNoAIOrToolMessages) ? (
-        <GenericInterruptView interrupt={interruptValue} />
+        <GenericInterruptView interrupt={fallbackValue} />
       ) : null}
     </>
   );
@@ -170,23 +175,13 @@ export function AssistantMessage({
   }
 
   return (
-    <div
-      className={cn(
-        "group flex items-start gap-2",
-        hasCustomComponent ? "w-full" : "mr-auto",
-      )}
-    >
-      <div
-        className={cn(
-          "flex flex-col gap-2",
-          hasCustomComponent ? "w-full" : "",
-        )}
-      >
+    <div className="group mr-auto flex w-full items-start gap-2">
+      <div className="flex w-full flex-col gap-2">
         {isToolResult ? (
           <>
             <ToolResult message={message} />
             <Interrupt
-              interruptValue={threadInterrupt?.value}
+              interrupt={threadInterrupt}
               isLastMessage={isLastMessage}
               hasNoAIOrToolMessages={hasNoAIOrToolMessages}
             />
@@ -220,7 +215,7 @@ export function AssistantMessage({
               />
             )}
             <Interrupt
-              interruptValue={threadInterrupt?.value}
+              interrupt={threadInterrupt}
               isLastMessage={isLastMessage}
               hasNoAIOrToolMessages={hasNoAIOrToolMessages}
             />
