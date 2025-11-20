@@ -4,12 +4,22 @@ import {
   createKnowledgeBase,
   listKnowledgeBases,
 } from "@/app/api/knowledge/service";
+import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const data = await listKnowledgeBases();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const data = await listKnowledgeBases(user.id);
     return NextResponse.json({ data }, { status: 200 });
   } catch (error) {
     return handleError(error);
@@ -18,6 +28,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const name = String(body.name ?? "").trim();
     const displayName = String(body.displayName ?? name).trim();
@@ -31,6 +50,7 @@ export async function POST(request: Request) {
     )
       ? distanceCandidate
       : "Cosine";
+    const type = body.type === "enterprise" ? "enterprise" : "personal";
 
     if (!name) {
       return NextResponse.json(
@@ -52,6 +72,8 @@ export async function POST(request: Request) {
       description,
       vectorSize,
       distance,
+      type,
+      ownerId: user.id,
     });
 
     return NextResponse.json({ data }, { status: 201 });

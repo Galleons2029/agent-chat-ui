@@ -31,6 +31,7 @@ import {
   LogOut,
   Edit3,
   Plus,
+  Upload,
   RefreshCw,
   Trash2,
   Layers,
@@ -43,6 +44,7 @@ import {
   Target,
   CalendarClock,
   MessageCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import { Thread } from "@/components/thread";
 import { StreamProvider } from "@/providers/Stream";
@@ -336,7 +338,7 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
   accounts: {
     title: '总分查账',
     description: '统一的账户视图，支持按条件筛选与导出',
-    render: () => <AccountPanel variant="dashboard"/>,
+    render: () => <AccountPanel variant="dashboard" />,
   },
   learning: {
     title: '个人学习进度',
@@ -607,11 +609,10 @@ function Sidebar({ items, active, onSelect, onOpenSettings, onLogout }: SidebarP
               <button
                 type="button"
                 onClick={() => onSelect(item.id as PanelId)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                  active === item.id
-                    ? `${item.color} text-white shadow-lg shadow-emerald-900/20`
-                    : 'text-emerald-100/80 hover:bg-white/10 hover:text-white'
-                }`}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${active === item.id
+                  ? `${item.color} text-white shadow-lg shadow-emerald-900/20`
+                  : 'text-emerald-100/80 hover:bg-white/10 hover:text-white'
+                  }`}
               >
                 <item.icon size={20} />
                 <span>{item.label}</span>
@@ -1246,7 +1247,11 @@ type CollectionCreatePayload = {
   description?: string;
   vectorSize: number;
   distance: string;
+  type?: 'enterprise' | 'personal';
 };
+
+const DEFAULT_VECTOR_SIZE = 1024;
+const DEFAULT_DISTANCE = 'Cosine';
 
 type CollectionEditPayload = {
   displayName?: string;
@@ -1261,6 +1266,13 @@ type ChunkFormValues = {
   source?: string;
   tags: string[];
   metadata: Record<string, unknown>;
+};
+
+type KnowledgeUploadPayload = {
+  collectionName: string;
+  file: File;
+  description?: string;
+  source?: string;
 };
 
 function KnowledgeBasePanel() {
@@ -1278,7 +1290,29 @@ function KnowledgeBasePanel() {
   const [editingChunk, setEditingChunk] = useState<KnowledgeChunk | null>(null);
   const [deletingCollection, setDeletingCollection] = useState<string | null>(null);
   const [deletingChunkId, setDeletingChunkId] = useState<string | null>(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<string | null>(null);
+  const [uploadingMap, setUploadingMap] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<'enterprise' | 'personal'>('enterprise');
+  const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid');
   const activeCollectionRef = useRef<string | null>(null);
+
+  const setCollectionUploading = useCallback((collectionName: string, uploading: boolean) => {
+    setUploadingMap((prev) => {
+      if (uploading) {
+        if (prev[collectionName]) {
+          return prev;
+        }
+        return { ...prev, [collectionName]: true };
+      }
+      if (!prev[collectionName]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[collectionName];
+      return next;
+    });
+  }, []);
 
   const selectedCollection = useMemo(() => {
     if (!selectedName) {
@@ -1287,9 +1321,18 @@ function KnowledgeBasePanel() {
     return collections.find((item) => item.name === selectedName) ?? null;
   }, [collections, selectedName]);
 
+  const filteredCollections = useMemo(() => {
+    return collections.filter((c) => {
+      if (activeTab === 'personal') {
+        return c.metadata.type === 'personal';
+      }
+      return c.metadata.type !== 'personal'; // Enterprise or undefined (legacy)
+    });
+  }, [collections, activeTab]);
+
   const totalChunks = useMemo(
-    () => collections.reduce((sum, item) => sum + item.chunkCount, 0),
-    [collections],
+    () => filteredCollections.reduce((sum, item) => sum + item.chunkCount, 0),
+    [filteredCollections],
   );
 
   const fetchCollections = useCallback(async () => {
@@ -1305,13 +1348,12 @@ function KnowledgeBasePanel() {
       const data: KnowledgeBase[] = Array.isArray(json.data) ? json.data : [];
       setCollections(data);
       setSelectedName((prev) => {
-        if (!data.length) {
-          return null;
-        }
-        if (prev && data.some((item) => item.name === prev)) {
+        // If we are in detail mode and the selected collection is still available, keep it
+        if (viewMode === 'detail' && prev && data.some((item) => item.name === prev)) {
           return prev;
         }
-        return data[0]?.name ?? null;
+        // Otherwise, if in grid mode or selection invalid, reset
+        return null;
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : '无法加载知识库';
@@ -1378,12 +1420,61 @@ function KnowledgeBasePanel() {
     loadChunks(selectedName);
   }, [selectedName, loadChunks]);
 
+  useEffect(() => {
+    if (!uploadDialogOpen) {
+      setUploadTarget(null);
+    }
+  }, [uploadDialogOpen]);
+
+  const uploadFileToCollection = useCallback(
+    async ({ collectionName, file, description, source }: KnowledgeUploadPayload) => {
+      setCollectionUploading(collectionName, true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (description) {
+          formData.append('description', description);
+        }
+        if (source) {
+          formData.append('source', source);
+        }
+        const response = await fetch(
+          `/api/knowledge/collections/${encodeURIComponent(collectionName)}/ingest`,
+          { method: 'POST', body: formData },
+        );
+        const json = await response.json();
+        if (!response.ok) {
+          const message = json?.error ?? '文件上传失败';
+          throw new Error(message);
+        }
+        return json;
+      } finally {
+        setCollectionUploading(collectionName, false);
+      }
+    },
+    [setCollectionUploading],
+  );
+
+  const submitUpload = useCallback(
+    async (payload: KnowledgeUploadPayload) => {
+      try {
+        await uploadFileToCollection(payload);
+        toast.success('文件已提交 MinerU 解析，稍后会自动写入知识库');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '文件上传失败';
+        toast.error(message);
+        throw error;
+      }
+    },
+    [uploadFileToCollection],
+  );
+
   const handleCreateCollection = useCallback(
     async (payload: CollectionCreatePayload) => {
       const response = await fetch('/api/knowledge/collections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, type: activeTab }),
       });
       const json = await response.json();
       if (!response.ok) {
@@ -1395,6 +1486,8 @@ function KnowledgeBasePanel() {
       setSelectedName(created?.name ?? payload.name);
       toast.success('知识库创建成功');
       await fetchCollections();
+      // Optionally switch to detail view immediately
+      setViewMode('detail');
     },
     [fetchCollections],
   );
@@ -1445,6 +1538,7 @@ function KnowledgeBasePanel() {
       }
       toast.success('知识库已删除');
       setSelectedName(null);
+      setViewMode('grid');
       await fetchCollections();
     } catch (error) {
       const message = error instanceof Error ? error.message : '删除知识库失败';
@@ -1551,7 +1645,7 @@ function KnowledgeBasePanel() {
           <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">知识库管理</p>
           <h2 className="mt-2 text-2xl font-semibold text-gray-900">统一的知识资产中心</h2>
           <p className="mt-2 text-sm text-gray-500">
-            当前共 {collections.length} 个知识库，累计 {totalChunks} 条 Chunk，可直接映射到 Qdrant 集合。
+            当前共 {filteredCollections.length} 个知识库，累计 {totalChunks} 条 Chunk，可直接映射到 Qdrant 集合。
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -1569,7 +1663,7 @@ function KnowledgeBasePanel() {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
           <p className="text-xs uppercase tracking-wide text-emerald-700">知识库数量</p>
-          <p className="mt-2 text-3xl font-semibold text-gray-900">{collections.length}</p>
+          <p className="mt-2 text-3xl font-semibold text-gray-900">{filteredCollections.length}</p>
           <p className="text-xs text-emerald-700/80">与业务领域一一对应，便于权限隔离</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1579,14 +1673,110 @@ function KnowledgeBasePanel() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[340px,1fr]">
-        <KnowledgeSidebar
-          items={collections}
-          selectedName={selectedName}
-          onSelect={setSelectedName}
-        />
+      {viewMode === 'grid' ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 bg-gray-100/50 p-1 rounded-xl">
+              <button
+                onClick={() => setActiveTab('enterprise')}
+                className={cn(
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  activeTab === 'enterprise'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                企业知识库
+              </button>
+              <button
+                onClick={() => setActiveTab('personal')}
+                className={cn(
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  activeTab === 'personal'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                私人知识库
+              </button>
+            </div>
+            <div className="text-sm text-gray-500">
+              {activeTab === 'enterprise'
+                ? '共建共享 · 企业级知识资产'
+                : '私有独享 · 个人知识空间'}
+            </div>
+          </div>
 
-        {selectedCollection ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {/* Create Card */}
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="group relative flex h-[280px] flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/50 transition-all hover:border-emerald-400 hover:bg-emerald-50/30"
+            >
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm transition-transform group-hover:scale-110 group-hover:shadow-md">
+                <Plus className="h-8 w-8 text-emerald-500" />
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-gray-900">新建知识库</p>
+                <p className="mt-1 text-xs text-gray-500">支持 PDF、Word、Markdown 等多种格式</p>
+              </div>
+            </button>
+
+            {/* Collection Cards */}
+            {filteredCollections.map((collection) => (
+              <div
+                key={collection.name}
+                onClick={() => {
+                  setSelectedName(collection.name);
+                  setViewMode('detail');
+                }}
+                className="group relative flex h-[280px] cursor-pointer flex-col justify-between rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-900/5"
+              >
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div className={cn(
+                      "h-12 w-12 rounded-xl flex items-center justify-center text-2xl shadow-sm",
+                      collection.status === 'green' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                    )}>
+                      <Database className="h-6 w-6" />
+                    </div>
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-[10px] font-medium uppercase tracking-wider",
+                      collection.status === 'green' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                    )}>
+                      {collection.status || 'Unknown'}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-4 text-lg font-bold text-gray-900 line-clamp-2 group-hover:text-emerald-600 transition-colors">
+                    {collection.metadata.displayName}
+                  </h3>
+                  <p className="mt-2 text-sm text-gray-500 line-clamp-3">
+                    {collection.metadata.description || '暂无描述'}
+                  </p>
+                </div>
+
+                <div className="border-t border-gray-50 pt-4">
+                  <div className="flex items-center justify-between text-xs text-gray-400">
+                    <div className="flex items-center gap-1.5">
+                      <Layers className="h-3.5 w-3.5" />
+                      <span>{collection.vectorSize} 维</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>{collection.chunkCount} 篇文档</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-[10px] text-gray-300">
+                    更新于 {formatDateLabel(collection.metadata.updatedAt as string)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        selectedCollection ? (
           <CollectionDetailSection
             collection={selectedCollection}
             chunks={chunks}
@@ -1614,20 +1804,42 @@ function KnowledgeBasePanel() {
             onEditCollection={() => setEditOpen(true)}
             onDeleteCollection={handleDeleteCollection}
             deletingCollection={deletingCollection === selectedCollection.name}
+            onUploadFile={() => {
+              setUploadTarget(selectedCollection.name);
+              setUploadDialogOpen(true);
+            }}
+            uploading={Boolean(uploadingMap[selectedCollection.name])}
+            isEnterprise={activeTab === 'enterprise'}
+            onBack={() => {
+              setSelectedName(null);
+              setViewMode('grid');
+            }}
           />
         ) : (
-          <div className="rounded-2xl border border-dashed border-emerald-200 bg-white/60 p-8 text-center text-gray-500">
-            请选择左侧的知识库查看详情
+          // Fallback if something goes wrong and we are in detail mode but no collection selected
+          <div className="flex h-full items-center justify-center">
+            <Button onClick={() => setViewMode('grid')}>返回列表</Button>
           </div>
-        )}
-      </div>
+        )
+      )}
 
-      <CollectionCreateDialog open={createOpen} onOpenChange={setCreateOpen} onSubmit={handleCreateCollection} />
+      <CollectionCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSubmit={handleCreateCollection}
+        onUploadFile={submitUpload}
+      />
       <CollectionEditDialog
         open={editOpen}
         onOpenChange={setEditOpen}
         collection={selectedCollection}
         onSubmit={handleUpdateCollection}
+      />
+      <KnowledgeUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        collectionName={uploadTarget}
+        onSubmit={submitUpload}
       />
       <ChunkEditorDialog
         open={chunkDialogOpen}
@@ -1652,63 +1864,9 @@ function KnowledgePanelSkeleton() {
   );
 }
 
-type KnowledgeSidebarProps = {
-  items: KnowledgeBase[];
-  selectedName: string | null;
-  onSelect: (name: string) => void;
-};
-
-function KnowledgeSidebar({ items, selectedName, onSelect }: KnowledgeSidebarProps) {
-  return (
-    <aside className="rounded-2xl border border-emerald-100 bg-white shadow-sm">
-      <div className="border-b border-emerald-50 p-5">
-        <p className="text-sm font-semibold text-gray-900">知识库列表</p>
-        <p className="mt-1 text-xs text-gray-500">一个知识库对应 Qdrant 中的一个集合</p>
-      </div>
-      <div className="max-h-[560px] space-y-3 overflow-y-auto p-4">
-        {items.map((item) => (
-          <button
-            key={item.name}
-            type="button"
-            onClick={() => onSelect(item.name)}
-            className={cn(
-              'w-full rounded-xl border p-4 text-left transition hover:border-emerald-300',
-              selectedName === item.name ? 'border-emerald-400 bg-emerald-50 shadow-sm' : 'border-gray-100 bg-white',
-            )}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-medium text-gray-900">{item.metadata.displayName}</p>
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                  item.status === 'green'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-amber-100 text-amber-700',
-                )}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                {item.status?.toUpperCase() ?? 'UNKNOWN'}
-              </span>
-            </div>
-            <p className="mt-1 min-h-[1.5rem] text-xs text-gray-500">
-              {item.metadata.description || '暂无描述'}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5">
-                <Layers className="h-3 w-3" />
-                维度 {item.vectorSize}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5">
-                <Database className="h-3 w-3" />
-                {item.chunkCount} 条
-              </span>
-            </div>
-          </button>
-        ))}
-      </div>
-    </aside>
-  );
-}
+// Removed KnowledgeSidebar as it is no longer used in the grid layout
+// type KnowledgeSidebarProps = ...
+// function KnowledgeSidebar ...
 
 type CollectionDetailProps = {
   collection: KnowledgeBase;
@@ -1725,6 +1883,10 @@ type CollectionDetailProps = {
   onEditCollection: () => void;
   onDeleteCollection: () => void | Promise<void>;
   deletingCollection: boolean;
+  onUploadFile: () => void;
+  uploading: boolean;
+  isEnterprise: boolean;
+  onBack: () => void;
 };
 
 function CollectionDetailSection({
@@ -1742,57 +1904,89 @@ function CollectionDetailSection({
   onEditCollection,
   onDeleteCollection,
   deletingCollection,
+  onUploadFile,
+  uploading,
+  isEnterprise,
+  onBack,
 }: CollectionDetailProps) {
   return (
-    <section className="flex flex-col rounded-2xl border border-emerald-100 bg-white shadow-sm">
+    <section className="flex flex-col rounded-2xl border border-emerald-100 bg-white shadow-sm min-h-[600px]">
       <div className="flex flex-col gap-4 border-b border-emerald-50 p-6 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-emerald-600">选中知识库</p>
-          <h3 className="mt-2 text-2xl font-semibold text-gray-900">{collection.metadata.displayName}</h3>
-          <p className="mt-2 text-sm text-gray-600">
-            {collection.metadata.description || '暂无描述，可在「编辑信息」中补充。'}
-          </p>
-          {collection.metadata.tags?.length ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {collection.metadata.tags.map((tag) => (
-                <span key={tag} className="rounded-full bg-emerald-50 px-3 py-0.5 text-xs text-emerald-700">
-                  #{tag}
+        <div className="flex items-start gap-4">
+          <Button variant="ghost" size="icon" onClick={onBack} className="-ml-2 h-8 w-8 text-gray-500 hover:text-gray-900">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h3 className="text-xl font-bold text-gray-900">{collection.metadata.displayName}</h3>
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+                  collection.status === 'green'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-700',
+                )}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                {collection.status?.toUpperCase() ?? 'UNKNOWN'}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-gray-500">{collection.metadata.description || '暂无描述'}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-1.5">
+                <Layers className="h-4 w-4 text-gray-400" />
+                <span>
+                  {collection.vectorSize} 维 · {collection.distance}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Database className="h-4 w-4 text-gray-400" />
+                <span>{collection.chunkCount} 条数据</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock3 className="h-4 w-4 text-gray-400" />
+                <span>{formatDateLabel(collection.metadata.updatedAt as string)}</span>
+              </div>
+              {collection.metadata.tags?.map((tag) => (
+                <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5">
+                  {tag}
                 </span>
               ))}
             </div>
-          ) : null}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onEditCollection}>
             <Edit3 className="h-4 w-4" />
-            编辑信息
           </Button>
           <Button
-            variant="destructive"
+            variant="outline"
             size="sm"
-            onClick={() => void onDeleteCollection()}
+            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={onDeleteCollection}
             disabled={deletingCollection}
           >
-            <Trash2 className="h-4 w-4" />
-            {deletingCollection ? '删除中...' : '删除知识库'}
+            {deletingCollection ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 border-b border-emerald-50 p-6 sm:grid-cols-3">
-        <StatPill label="Chunk 数量" value={`${collection.chunkCount} 条`} />
-        <StatPill label="向量维度" value={`${collection.vectorSize}`} />
-        <StatPill label="距离算法" value={collection.distance ?? 'Cosine'} />
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-50 px-6 py-4">
-        <div>
-          <p className="font-semibold text-gray-900">Chunk 列表</p>
-          <p className="text-sm text-gray-500">支持新增、编辑与删除，内容会实时写入 Qdrant</p>
+      <div className="flex items-center justify-between border-b border-emerald-50 px-6 py-3 bg-emerald-50/30">
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={onUploadFile} disabled={uploading}>
+            {uploading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            上传文件
+          </Button>
+          {isEnterprise ? (
+            <Button size="sm" variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" onClick={() => toast.info('请上传专门用于员工培训的文档')}>
+              <GraduationCap className="h-4 w-4 mr-1" />
+              上传培训文档
+            </Button>
+          ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={onRefreshChunks}>
-            <RefreshCw className="h-4 w-4" />
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onRefreshChunks} disabled={chunksLoading}>
+            <RefreshCw className={cn('h-4 w-4', chunksLoading ? 'animate-spin' : '')} />
             刷新
           </Button>
           <Button size="sm" onClick={onCreateChunk}>
@@ -1812,6 +2006,7 @@ function CollectionDetailSection({
           onEdit={onEditChunk}
           onDelete={onDeleteChunk}
           onLoadMore={onLoadMore}
+          isEnterprise={isEnterprise}
         />
       </div>
     </section>
@@ -1836,6 +2031,7 @@ type ChunkListProps = {
   onEdit: (chunk: KnowledgeChunk) => void;
   onDelete: (chunk: KnowledgeChunk) => void | Promise<void>;
   onLoadMore: () => void;
+  isEnterprise: boolean;
 };
 
 function ChunkList({
@@ -1847,6 +2043,7 @@ function ChunkList({
   onEdit,
   onDelete,
   onLoadMore,
+  isEnterprise,
 }: ChunkListProps) {
   if (loading) {
     return (
@@ -1879,27 +2076,45 @@ function ChunkList({
 
         return (
           <article key={chunk.id} className="space-y-3 rounded-2xl border border-gray-100 p-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-lg font-semibold text-gray-900">
-                  {chunk.title || `未命名 Chunk (${chunk.id.slice(0, 8)})`}
-                </p>
-                <p className="text-xs text-gray-500">{formatDateLabel(chunk.updatedAt)}</p>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-gray-900 line-clamp-1">{chunk.title || '无标题'}</h4>
+                  {chunk.tags?.map((tag) => (
+                    <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-600 line-clamp-2">{chunk.text}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="ghost" size="sm" onClick={() => onEdit(chunk)}>
+              <div className="flex items-center gap-2">
+                {isEnterprise ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                    onClick={() => toast.success('已添加到课程转化队列')}
+                  >
+                    <GraduationCap className="h-4 w-4 mr-1" />
+                    转为课程
+                  </Button>
+                ) : null}
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(chunk)}>
                   <Edit3 className="h-4 w-4" />
-                  编辑
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="text-red-600 hover:text-red-700"
+                  size="icon"
+                  className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
                   onClick={() => onDelete(chunk)}
                   disabled={deletingChunkId === chunk.id}
                 >
-                  <Trash2 className="h-4 w-4" />
-                  {deletingChunkId === chunk.id ? '删除中...' : '删除'}
+                  {deletingChunkId === chunk.id ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -1989,18 +2204,19 @@ type CollectionCreateDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (payload: CollectionCreatePayload) => Promise<void>;
+  onUploadFile?: (payload: KnowledgeUploadPayload) => Promise<void>;
 };
 
-function CollectionCreateDialog({ open, onOpenChange, onSubmit }: CollectionCreateDialogProps) {
+function CollectionCreateDialog({ open, onOpenChange, onSubmit, onUploadFile }: CollectionCreateDialogProps) {
   const [form, setForm] = useState({
     name: '',
     displayName: '',
     description: '',
-    vectorSize: '1536',
-    distance: 'Cosine',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [ingesting, setIngesting] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -2008,10 +2224,10 @@ function CollectionCreateDialog({ open, onOpenChange, onSubmit }: CollectionCrea
         name: '',
         displayName: '',
         description: '',
-        vectorSize: '1536',
-        distance: 'Cosine',
       });
       setError(null);
+      setUploadFile(null);
+      setIngesting(false);
     }
   }, [open]);
 
@@ -2024,17 +2240,28 @@ function CollectionCreateDialog({ open, onOpenChange, onSubmit }: CollectionCrea
       if (!normalizedName) {
         throw new Error('集合名称不能为空');
       }
-      const dimension = Number(form.vectorSize);
-      if (!Number.isFinite(dimension) || dimension <= 0) {
-        throw new Error('向量维度必须为正数');
-      }
       await onSubmit({
         name: normalizedName,
         displayName: (form.displayName || form.name).trim() || normalizedName,
         description: form.description.trim() || undefined,
-        vectorSize: dimension,
-        distance: form.distance,
+        vectorSize: DEFAULT_VECTOR_SIZE,
+        distance: DEFAULT_DISTANCE,
       });
+      if (uploadFile && onUploadFile) {
+        setIngesting(true);
+        try {
+          await onUploadFile({
+            collectionName: normalizedName,
+            file: uploadFile,
+            description: form.description.trim() || undefined,
+            source: 'dashboard:create',
+          });
+        } catch (uploadError) {
+          console.error(uploadError);
+        } finally {
+          setIngesting(false);
+        }
+      }
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : '提交失败');
@@ -2045,73 +2272,143 @@ function CollectionCreateDialog({ open, onOpenChange, onSubmit }: CollectionCrea
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>新建知识库</DialogTitle>
-          <DialogDescription>创建后会在 Qdrant 中生成同名集合，可立即同步 Chunk。</DialogDescription>
+          <DialogDescription>
+            先命名并补充用途，再可选上传一份文档，系统会用 MinerU 解析并写入 Qdrant。
+          </DialogDescription>
         </DialogHeader>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <Label htmlFor="collection-name">集合名称</Label>
-            <Input
-              id="collection-name"
-              placeholder="如 policy-v1"
-              value={form.name}
-              onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-              required
-            />
-            <p className="mt-1 text-xs text-gray-500">需符合 Qdrant 集合命名规范，建议使用小写加中划线。</p>
-          </div>
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <div className="grid gap-4 md:grid-cols-[1.05fr,0.95fr]">
+            <div className="space-y-3 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60">
+              <div className="flex items-start justify-between rounded-lg bg-emerald-50/70 p-3">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-600">基础信息</p>
+                  <p className="text-sm text-gray-600">用于区分集合、展示标题与权限说明。</p>
+                </div>
+                <Sparkles className="h-4 w-4 text-emerald-500" />
+              </div>
 
-          <div>
-            <Label htmlFor="collection-display">
-              展示名称 <span className="text-gray-400">(可选)</span>
-            </Label>
-            <Input
-              id="collection-display"
-              placeholder="如 财务制度知识库"
-              value={form.displayName}
-              onChange={(event) => setForm((prev) => ({ ...prev, displayName: event.target.value }))}
-            />
-          </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="collection-name">集合名称</Label>
+                  <Input
+                    id="collection-name"
+                    placeholder="如 policy-v1"
+                    value={form.name}
+                    onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-500">建议使用小写与中划线，便于与 Qdrant 对齐。</p>
+                </div>
 
-          <div>
-            <Label htmlFor="collection-description">
-              描述 <span className="text-gray-400">(可选)</span>
-            </Label>
-            <Textarea
-              id="collection-description"
-              placeholder="补充用途、权限说明等信息"
-              value={form.description}
-              onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-              rows={3}
-            />
-          </div>
+                <div>
+                  <Label htmlFor="collection-display">
+                    展示名称 <span className="text-gray-400">(可选)</span>
+                  </Label>
+                  <Input
+                    id="collection-display"
+                    placeholder="如 财务制度知识库"
+                    value={form.displayName}
+                    onChange={(event) => setForm((prev) => ({ ...prev, displayName: event.target.value }))}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">用于列表与详情展示，默认跟随集合名称。</p>
+                </div>
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="collection-vector">向量维度</Label>
-              <Input
-                id="collection-vector"
-                type="number"
-                min={1}
-                value={form.vectorSize}
-                onChange={(event) => setForm((prev) => ({ ...prev, vectorSize: event.target.value }))}
-                required
-              />
+              <div>
+                <Label htmlFor="collection-description">
+                  描述 <span className="text-gray-400">(可选)</span>
+                </Label>
+                <Textarea
+                  id="collection-description"
+                  placeholder="补充用途、访问范围或对接系统"
+                  value={form.description}
+                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex items-center gap-3 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/40 p-3 text-xs text-gray-700">
+                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-white text-emerald-600 shadow-inner">
+                  <Layers className="h-4 w-4" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-emerald-700">默认向量配置</p>
+                  <p>系统固定使用 1024 维 · Cosine，相似度兼顾效果与效率。</p>
+                </div>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="collection-distance">度量方式</Label>
-              <select
-                id="collection-distance"
-                className="mt-1 h-10 w-full rounded-md border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                value={form.distance}
-                onChange={(event) => setForm((prev) => ({ ...prev, distance: event.target.value }))}
+
+            <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4 shadow-inner">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-600">智能导入</p>
+                  <p className="text-sm text-gray-600">可选上传首份文档，自动解析并写入。</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-gray-600 shadow-sm">可选</span>
+              </div>
+
+              <input
+                id="collection-upload"
+                type="file"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv,.xlsx,.zip,.rar,.7z"
+                onChange={(event) => {
+                  const fileList = event.target.files;
+                  setUploadFile(fileList && fileList[0] ? fileList[0] : null);
+                }}
+                className="hidden"
+              />
+              <label
+                htmlFor="collection-upload"
+                className="group block cursor-pointer rounded-xl border-2 border-dashed border-emerald-200 bg-white/80 p-4 transition hover:border-emerald-400 hover:bg-emerald-50"
               >
-                <option value="Cosine">Cosine</option>
-                <option value="Dot">Dot</option>
-                <option value="Euclid">Euclid</option>
-              </select>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+                    <Upload className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">拖拽或点击上传</p>
+                    <p className="text-xs text-gray-500">自动调用 MinerU 解析 Markdown，稍后入库</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                  <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">PDF / Office / ZIP / MD</span>
+                  <span className="rounded-full bg-gray-100 px-2 py-1">单文件 &lt;= 50MB</span>
+                  <span className="rounded-full bg-gray-100 px-2 py-1">支持中文与英文</span>
+                </div>
+              </label>
+
+              {uploadFile ? (
+                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{uploadFile.name}</p>
+                      <p className="text-xs text-gray-500">{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-8" type="button" onClick={() => setUploadFile(null)}>
+                    清除
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">提交后会排队写入，解析结果将同步到知识库详情。</p>
+              )}
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg bg-white p-3 text-xs text-gray-600 shadow-sm">
+                  <p className="font-semibold text-gray-800">解析 · MinerU</p>
+                  <p className="mt-1">自动切分、提炼摘要，减少重复上传。</p>
+                </div>
+                <div className="rounded-lg bg-white p-3 text-xs text-gray-600 shadow-sm">
+                  <p className="font-semibold text-gray-800">入库 · Qdrant</p>
+                  <p className="mt-1">解析完成后直接写入目标集合，无需再次配置。</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2121,8 +2418,8 @@ function CollectionCreateDialog({ open, onOpenChange, onSubmit }: CollectionCrea
             <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={submitting}>
               取消
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? '创建中...' : '创建知识库'}
+            <Button type="submit" disabled={submitting || ingesting}>
+              {submitting ? '提交中...' : ingesting ? '上传中...' : '创建知识库'}
             </Button>
           </DialogFooter>
         </form>
@@ -2234,6 +2531,194 @@ function CollectionEditDialog({
             </Button>
             <Button type="submit" disabled={submitting}>
               {submitting ? '保存中...' : '保存信息'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type KnowledgeUploadDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  collectionName: string | null;
+  onSubmit: (payload: KnowledgeUploadPayload) => Promise<void>;
+};
+
+function KnowledgeUploadDialog({ open, onOpenChange, collectionName, onSubmit }: KnowledgeUploadDialogProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [description, setDescription] = useState('');
+  const [source, setSource] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setFile(null);
+      setDescription('');
+      setSource('');
+      setSubmitting(false);
+      setError(null);
+    }
+  }, [open]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!collectionName) {
+      setError('请先选择知识库');
+      return;
+    }
+    if (!file) {
+      setError('请选择需要解析的文件');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({
+        collectionName,
+        file,
+        description: description.trim() || undefined,
+        source: source.trim() || undefined,
+      });
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>上传文件到知识库</DialogTitle>
+          <DialogDescription>文件会通过 MinerU 解析为 Markdown，并写入选中的知识库。</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <div className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50/80 via-white to-white p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm">
+                <Database className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-700">目标知识库</p>
+                <p className="text-lg font-semibold text-gray-900">{collectionName ?? '未选择'}</p>
+                <p className="text-xs text-gray-600">解析后直接写入该集合，支持自动追加 Chunk 与来源字段。</p>
+              </div>
+              <div className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-emerald-700 shadow-sm">
+                实时入库
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-dashed border-emerald-200 bg-white p-4">
+            <input
+              id="knowledge-upload-file"
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv,.xlsx,.zip,.rar,.7z"
+              onChange={(event) => {
+                const fileList = event.target.files;
+                setFile(fileList && fileList[0] ? fileList[0] : null);
+              }}
+              className="hidden"
+            />
+            <label
+              htmlFor="knowledge-upload-file"
+              className="group block cursor-pointer rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-4 transition hover:border-emerald-500 hover:bg-emerald-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-emerald-600 shadow-inner">
+                  <Upload className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">拖拽或点击选择文件</p>
+                  <p className="text-xs text-gray-600">支持 PDF / Office / ZIP / Markdown，自动调用 MinerU。</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                <span className="rounded-full bg-white px-2 py-1 text-emerald-700 shadow-sm">Chunk 自动拆分</span>
+                <span className="rounded-full bg-white px-2 py-1 shadow-sm">保留文件名与备注</span>
+                <span className="rounded-full bg-white px-2 py-1 shadow-sm">解析后推送入库</span>
+              </div>
+            </label>
+
+            {file ? (
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-1">{file.name}</p>
+                    <p className="text-xs text-gray-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" className="h-8" type="button" onClick={() => setFile(null)}>
+                  重新选择
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-3 text-xs text-gray-600">
+                <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>MinerU 切分</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>Markdown 转写</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>自动写入</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <Label htmlFor="knowledge-upload-desc">
+                备注 <span className="text-gray-400">(可选)</span>
+              </Label>
+              <Textarea
+                id="knowledge-upload-desc"
+                rows={3}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="为 MinerU 提供背景信息或分段提示"
+              />
+              <p className="text-xs text-gray-500">示例：流程使用说明 / 当前版本号 / 文档受众。</p>
+            </div>
+            <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <Label htmlFor="knowledge-upload-source">
+                来源 <span className="text-gray-400">(可选)</span>
+              </Label>
+              <Input
+                id="knowledge-upload-source"
+                value={source}
+                onChange={(event) => setSource(event.target.value)}
+                placeholder="如 合同管理系统 / HR 文档"
+              />
+              <div className="flex items-start gap-2 text-xs text-gray-500">
+                <Sparkles className="h-4 w-4 text-emerald-500" />
+                <span>用来源标记可在检索和审计时快速过滤。</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            MinerU 解析完成后会自动推送到队列，由后端写入 Qdrant 无需再次设置向量参数。
+          </p>
+          {error ? <p className="text-sm text-red-500">{error}</p> : null}
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+              取消
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? '提交中...' : '上传文件'}
             </Button>
           </DialogFooter>
         </form>
@@ -2441,11 +2926,10 @@ function FeaturePlaceholder({ icon: Icon, title, description, actions = [] }: Fe
           {actions.map((action) => (
             <button
               key={action.label}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                action.variant === 'primary'
-                  ? 'bg-green-500 text-white hover:bg-green-600'
-                  : 'border border-gray-200 text-gray-700 hover:border-gray-300'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${action.variant === 'primary'
+                ? 'bg-green-500 text-white hover:bg-green-600'
+                : 'border border-gray-200 text-gray-700 hover:border-gray-300'
+                }`}
             >
               {action.label}
             </button>

@@ -9,14 +9,14 @@ import {
 export const runtime = "nodejs";
 
 type Params = {
-  params: {
+  params: Promise<{
     collection: string;
-  };
+  }>;
 };
 
 export async function GET(_: Request, { params }: Params) {
   try {
-    const collectionName = decodeURIComponent(params.collection);
+    const collectionName = await getCollectionName(params);
     const data = await getKnowledgeBase(collectionName);
     return NextResponse.json({ data }, { status: 200 });
   } catch (error) {
@@ -26,7 +26,7 @@ export async function GET(_: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
-    const collectionName = decodeURIComponent(params.collection);
+    const collectionName = await getCollectionName(params);
     const body = await request.json();
     const displayName =
       typeof body.displayName === "string"
@@ -63,12 +63,17 @@ export async function PATCH(request: Request, { params }: Params) {
 
 export async function DELETE(_: Request, { params }: Params) {
   try {
-    const collectionName = decodeURIComponent(params.collection);
+    const collectionName = await getCollectionName(params);
     await deleteKnowledgeBase(collectionName);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     return handleError(error);
   }
+}
+
+async function getCollectionName(params: Params["params"]) {
+  const { collection } = await params;
+  return decodeURIComponent(collection);
 }
 
 function handleError(error: unknown, status = 500) {

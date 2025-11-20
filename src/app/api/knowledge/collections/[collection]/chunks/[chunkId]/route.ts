@@ -9,18 +9,16 @@ import {
 export const runtime = "nodejs";
 
 type Params = {
-  params: {
+  params: Promise<{
     collection: string;
     chunkId: string;
-  };
+  }>;
 };
 
 export async function GET(_: Request, { params }: Params) {
   try {
-    const chunk = await getChunk(
-      decodeURIComponent(params.collection),
-      decodeURIComponent(params.chunkId),
-    );
+    const { collectionName, chunkId } = await getDecodedParams(params);
+    const chunk = await getChunk(collectionName, chunkId);
 
     if (!chunk) {
       return NextResponse.json(
@@ -37,8 +35,7 @@ export async function GET(_: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
-    const collectionName = decodeURIComponent(params.collection);
-    const chunkId = decodeURIComponent(params.chunkId);
+    const { collectionName, chunkId } = await getDecodedParams(params);
     const existing = await getChunk(collectionName, chunkId);
 
     if (!existing) {
@@ -90,13 +87,20 @@ export async function PATCH(request: Request, { params }: Params) {
 
 export async function DELETE(_: Request, { params }: Params) {
   try {
-    const collectionName = decodeURIComponent(params.collection);
-    const chunkId = decodeURIComponent(params.chunkId);
+    const { collectionName, chunkId } = await getDecodedParams(params);
     await deleteChunk(collectionName, chunkId);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     return handleError(error);
   }
+}
+
+async function getDecodedParams(params: Params["params"]) {
+  const { collection, chunkId } = await params;
+  return {
+    collectionName: decodeURIComponent(collection),
+    chunkId: decodeURIComponent(chunkId),
+  };
 }
 
 function handleError(error: unknown, status = 500) {

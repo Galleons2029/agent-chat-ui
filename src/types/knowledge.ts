@@ -2,6 +2,10 @@ export type KnowledgeMetadata = {
   displayName: string;
   description?: string;
   tags?: string[];
+  type?: 'enterprise' | 'personal';
+  ownerId?: string;
+  courseId?: string;
+  updatedAt?: string;
 };
 
 export type KnowledgeBase = {

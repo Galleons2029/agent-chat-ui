@@ -102,6 +102,44 @@ NEXT_PUBLIC_ASSISTANT_ID=agent
 
 当这些变量设置后，应用会直接使用它们而不再展示配置表单。
 
+## 知识库文件上传（MinerU + RabbitMQ）
+
+仪表盘「知识库」模块支持直接上传文件：系统会调用 [MinerU API](https://mineru.net/apiManage/docs) 将文件解析为 Markdown，然后把解析结果打包成 JSON 字符串推送到指定 RabbitMQ 队列，由后端消费写入 Qdrant。要启用该能力，请额外配置以下环境变量：
+
+| 变量名 | 说明 |
+| --- | --- |
+| `MINERU_API_BASE_URL` | MinerU API 基础地址，例如 `https://mineru.net/apiManage` |
+| `MINERU_API_KEY` | MinerU 控制台申请的 API Key，将作为 `Authorization: Bearer <key>` 发送 |
+| `MINERU_UPLOAD_PATH` *(可选)* | 上传接口路径，默认 `/extract/upload` |
+| `MINERU_STATUS_PATH` *(可选)* | 轮询任务状态的接口路径，默认 `/extract/status` |
+| `MINERU_STATUS_TASK_KEY` *(可选)* | 轮询接口中表示任务 ID 的查询参数名，默认 `task_id` |
+| `MINERU_OUTPUT_FORMAT` *(可选)* | MinerU 导出的目标格式，默认 `markdown` |
+| `MINERU_UPLOAD_EXTRA_FIELDS` *(可选)* | 需要一并提交到 MinerU 的额外字段，JSON 对象格式 |
+| `MINERU_POLL_INTERVAL_MS`/`MINERU_JOB_TIMEOUT_MS` *(可选)* | 轮询 MinerU 状态的间隔与超时时间（毫秒） |
+| `RABBITMQ_URL` | AMQP 连接串，如 `amqp://user:pass@host:5672/vhost` |
+| `RABBITMQ_KNOWLEDGE_QUEUE` | 用于承载解析结果的队列名称 |
+| `KNOWLEDGE_UPLOAD_MAX_BYTES` *(可选)* | 单个上传文件的大小上限，默认 `30MB` |
+
+队列中的消息为 JSON 字符串，结构如下：
+
+```json
+{
+  "collection": "policy-v1",
+  "filename": "员工手册.pdf",
+  "mineruTaskId": "task_xxx",
+  "markdown": "# MinerU 转换后的 Markdown ...",
+  "metadata": {
+    "uploadedAt": "2025-01-11T03:21:09.812Z",
+    "fileSize": 1048576,
+    "source": "dashboard",
+    "description": "员工手册 2025 版",
+    "mineruFiles": ["员工手册.md"]
+  }
+}
+```
+
+接入 RabbitMQ 的服务可以按需拆分 Markdown，写入对应的 Qdrant 集合。
+
 ## 在聊天界面隐藏消息
 
 可以通过两种方式控制消息在 Agent Chat UI 中的可见性：

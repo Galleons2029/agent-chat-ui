@@ -8,14 +8,14 @@ import {
 export const runtime = "nodejs";
 
 type Params = {
-  params: {
+  params: Promise<{
     collection: string;
-  };
+  }>;
 };
 
 export async function GET(request: Request, { params }: Params) {
   try {
-    const collectionName = decodeURIComponent(params.collection);
+    const collectionName = await getCollectionName(params);
     const { searchParams } = new URL(request.url);
     const limit = Math.max(
       1,
@@ -40,7 +40,7 @@ export async function GET(request: Request, { params }: Params) {
 
 export async function POST(request: Request, { params }: Params) {
   try {
-    const collectionName = decodeURIComponent(params.collection);
+    const collectionName = await getCollectionName(params);
     const body = await request.json();
     const text = typeof body.text === "string" ? body.text.trim() : "";
     const title =
@@ -78,6 +78,11 @@ export async function POST(request: Request, { params }: Params) {
   } catch (error) {
     return handleError(error);
   }
+}
+
+async function getCollectionName(params: Params["params"]) {
+  const { collection } = await params;
+  return decodeURIComponent(collection);
 }
 
 function parseOffset(value: string | null) {

@@ -39,6 +39,9 @@ type ChunkPayload = {
   updatedAt?: string;
   displayName?: string;
   description?: string;
+  type?: 'enterprise' | 'personal';
+  ownerId?: string;
+  courseId?: string;
 };
 
 const METADATA_FILTER = {
@@ -63,7 +66,7 @@ const CHUNK_FILTER = {
   ],
 };
 
-export async function listKnowledgeBases(): Promise<KnowledgeBase[]> {
+export async function listKnowledgeBases(userId?: string): Promise<KnowledgeBase[]> {
   const { result } = await qdrantRequest<QdrantResponse<{ collections: QdrantCollection[] }>>(
     "/collections",
   );
@@ -76,7 +79,16 @@ export async function listKnowledgeBases(): Promise<KnowledgeBase[]> {
     result.collections.map(({ name }) => getKnowledgeBase(name)),
   );
 
-  return bases.sort((a, b) =>
+  const filteredBases = bases.filter((base) => {
+    if (!userId) return true; // If no userId provided, return all (or handle as admin/public view)
+    if (base.metadata.type === 'personal') {
+      return base.metadata.ownerId === userId;
+    }
+    // Enterprise bases are visible to all authenticated users
+    return true;
+  });
+
+  return filteredBases.sort((a, b) =>
     a.metadata.displayName.localeCompare(b.metadata.displayName, "zh-CN"),
   );
 }
@@ -101,6 +113,9 @@ export async function getKnowledgeBase(name: string): Promise<KnowledgeBase> {
       displayName: metadata?.displayName ?? name,
       description: metadata?.description,
       tags: metadata?.tags ?? [],
+      type: metadata?.type,
+      ownerId: metadata?.ownerId,
+      courseId: metadata?.courseId,
     },
   };
 }
@@ -111,6 +126,8 @@ export async function createKnowledgeBase(input: {
   distance?: string;
   description?: string;
   displayName?: string;
+  type?: 'enterprise' | 'personal';
+  ownerId?: string;
 }): Promise<KnowledgeBase> {
   const normalizedName = input.name.trim();
   const vectorConfig = {
@@ -128,6 +145,8 @@ export async function createKnowledgeBase(input: {
   await upsertMetadata(normalizedName, {
     displayName: input.displayName?.trim() || normalizedName,
     description: input.description?.trim(),
+    type: input.type,
+    ownerId: input.ownerId,
   });
 
   return getKnowledgeBase(normalizedName);
@@ -158,6 +177,9 @@ export async function upsertMetadata(
             displayName: metadata.displayName ?? collection,
             description: metadata.description,
             tags: metadata.tags ?? [],
+            type: metadata.type,
+            ownerId: metadata.ownerId,
+            courseId: metadata.courseId,
           },
         },
       ],
@@ -302,6 +324,9 @@ async function fetchMetadata(
     description:
       point.payload.description ?? point.payload.metadata?.description,
     tags: (point.payload.tags ?? []) as string[],
+    type: point.payload.type as 'enterprise' | 'personal' | undefined,
+    ownerId: point.payload.ownerId as string | undefined,
+    courseId: point.payload.courseId as string | undefined,
   };
 }
 
