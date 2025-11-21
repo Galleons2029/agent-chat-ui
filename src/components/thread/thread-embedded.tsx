@@ -76,7 +76,7 @@ export function ThreadEmbedded() {
   const [artifactContext, setArtifactContext] = useArtifactContext();
   
   // Internal state instead of URL query parameters
-  const [hideToolCalls, setHideToolCalls] = useState(false);
+  const [enableWebSearch, setEnableWebSearch] = useState(false);
   const [input, setInput] = useState("");
   const {
     contentBlocks,
@@ -152,7 +152,12 @@ export function ThreadEmbedded() {
     const toolMessages = ensureToolCallsHaveResponses(stream.messages);
 
     const context =
-      Object.keys(artifactContext).length > 0 ? artifactContext : undefined;
+      Object.keys(artifactContext).length > 0 || enableWebSearch
+        ? {
+            ...artifactContext,
+            webSearchEnabled: enableWebSearch,
+          }
+        : undefined;
 
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
@@ -297,15 +302,15 @@ export function ThreadEmbedded() {
                       <div>
                         <div className="flex items-center space-x-2">
                           <Switch
-                            id="render-tool-calls-embedded"
-                            checked={hideToolCalls}
-                            onCheckedChange={setHideToolCalls}
+                            id="enable-web-search-embedded"
+                            checked={enableWebSearch}
+                            onCheckedChange={setEnableWebSearch}
                           />
                           <Label
-                            htmlFor="render-tool-calls-embedded"
+                            htmlFor="enable-web-search-embedded"
                             className="text-sm text-gray-600"
                           >
-                            隐藏工具调用
+                            启用联网搜索
                           </Label>
                         </div>
                       </div>

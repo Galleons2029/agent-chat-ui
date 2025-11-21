@@ -94,8 +94,8 @@ export function Thread({ className }: ThreadProps = {}) {
     "chatHistoryOpen",
     parseAsBoolean.withDefault(false),
   );
-  const [hideToolCalls, setHideToolCalls] = useQueryState(
-    "hideToolCalls",
+  const [enableWebSearch, setEnableWebSearch] = useQueryState(
+    "enableWebSearch",
     parseAsBoolean.withDefault(false),
   );
   const [input, setInput] = useState("");
@@ -186,7 +186,12 @@ export function Thread({ className }: ThreadProps = {}) {
     const toolMessages = ensureToolCallsHaveResponses(stream.messages);
 
     const context =
-      Object.keys(artifactContext).length > 0 ? artifactContext : undefined;
+      Object.keys(artifactContext).length > 0 || enableWebSearch
+        ? {
+            ...artifactContext,
+            webSearchEnabled: enableWebSearch ?? false,
+          }
+        : undefined;
 
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
@@ -455,21 +460,21 @@ export function Thread({ className }: ThreadProps = {}) {
                       />
 
                       <div className="flex items-center gap-6 p-2 pt-4">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              id="render-tool-calls"
-                              checked={hideToolCalls ?? false}
-                              onCheckedChange={setHideToolCalls}
-                            />
-                            <Label
-                              htmlFor="render-tool-calls"
-                              className="text-sm text-gray-600"
-                            >
-                              隐藏工具调用
-                            </Label>
-                          </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="enable-web-search"
+                            checked={enableWebSearch ?? false}
+                            onCheckedChange={setEnableWebSearch}
+                          />
+                          <Label
+                            htmlFor="enable-web-search"
+                            className="text-sm text-gray-600"
+                          >
+                            联网搜索
+                          </Label>
                         </div>
+                      </div>
                         <Label
                           htmlFor="file-input"
                           className="flex cursor-pointer items-center gap-2"

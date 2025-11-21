@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { NextResponse } from "next/server";
 
 import {
@@ -38,8 +40,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const name = String(body.name ?? "").trim();
-    const displayName = String(body.displayName ?? name).trim();
+    const name = String(body.name ?? "").trim() || generateCollectionName();
+    const displayName = String(body.displayName ?? "").trim() || "新知识库";
     const description =
       typeof body.description === "string" ? body.description : undefined;
     const vectorSize = Number(body.vectorSize ?? 1536);
@@ -51,13 +53,6 @@ export async function POST(request: Request) {
       ? distanceCandidate
       : "Cosine";
     const type = body.type === "enterprise" ? "enterprise" : "personal";
-
-    if (!name) {
-      return NextResponse.json(
-        { error: "知识库名称不能为空" },
-        { status: 400 },
-      );
-    }
 
     if (!Number.isFinite(vectorSize) || vectorSize <= 0) {
       return NextResponse.json(
@@ -87,4 +82,9 @@ function handleError(error: unknown, status = 500) {
   const message =
     error instanceof Error ? error.message : "未知错误，请稍后再试";
   return NextResponse.json({ error: message }, { status });
+}
+
+function generateCollectionName() {
+  const shortId = randomUUID().slice(0, 8);
+  return `kb-${Date.now().toString(36)}-${shortId}`;
 }

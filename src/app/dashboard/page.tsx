@@ -1242,7 +1242,7 @@ function TrainingPanel() {
 }
 
 type CollectionCreatePayload = {
-  name: string;
+  name?: string;
   displayName: string;
   description?: string;
   vectorSize: number;
@@ -1470,7 +1470,7 @@ function KnowledgeBasePanel() {
   );
 
   const handleCreateCollection = useCallback(
-    async (payload: CollectionCreatePayload) => {
+    async (payload: CollectionCreatePayload): Promise<KnowledgeBase | void> => {
       const response = await fetch('/api/knowledge/collections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1483,11 +1483,17 @@ function KnowledgeBasePanel() {
         throw new Error(message);
       }
       const created: KnowledgeBase | undefined = json.data;
-      setSelectedName(created?.name ?? payload.name);
+      const targetName = created?.name ?? payload.name ?? null;
+      if (targetName) {
+        setSelectedName(targetName);
+      }
       toast.success('知识库创建成功');
       await fetchCollections();
       // Optionally switch to detail view immediately
-      setViewMode('detail');
+      if (targetName) {
+        setViewMode('detail');
+      }
+      return created;
     },
     [fetchCollections],
   );
@@ -2203,13 +2209,12 @@ function formatDateLabel(input?: string) {
 type CollectionCreateDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (payload: CollectionCreatePayload) => Promise<void>;
+  onSubmit: (payload: CollectionCreatePayload) => Promise<KnowledgeBase | void>;
   onUploadFile?: (payload: KnowledgeUploadPayload) => Promise<void>;
 };
 
 function CollectionCreateDialog({ open, onOpenChange, onSubmit, onUploadFile }: CollectionCreateDialogProps) {
   const [form, setForm] = useState({
-    name: '',
     displayName: '',
     description: '',
   });
@@ -2221,7 +2226,6 @@ function CollectionCreateDialog({ open, onOpenChange, onSubmit, onUploadFile }: 
   useEffect(() => {
     if (!open) {
       setForm({
-        name: '',
         displayName: '',
         description: '',
       });
@@ -2236,24 +2240,25 @@ function CollectionCreateDialog({ open, onOpenChange, onSubmit, onUploadFile }: 
     setError(null);
     setSubmitting(true);
     try {
-      const normalizedName = form.name.trim();
-      if (!normalizedName) {
-        throw new Error('集合名称不能为空');
-      }
-      await onSubmit({
-        name: normalizedName,
-        displayName: (form.displayName || form.name).trim() || normalizedName,
-        description: form.description.trim() || undefined,
+      const displayName = form.displayName.trim() || '新知识库';
+      const description = form.description.trim();
+      const created = await onSubmit({
+        displayName,
+        description: description || undefined,
         vectorSize: DEFAULT_VECTOR_SIZE,
         distance: DEFAULT_DISTANCE,
       });
+      const targetName = created?.name;
       if (uploadFile && onUploadFile) {
+        if (!targetName) {
+          throw new Error('创建成功但返回的集合名称为空，请稍后重试');
+        }
         setIngesting(true);
         try {
           await onUploadFile({
-            collectionName: normalizedName,
+            collectionName: targetName,
             file: uploadFile,
-            description: form.description.trim() || undefined,
+            description: description || undefined,
             source: 'dashboard:create',
           });
         } catch (uploadError) {
@@ -2272,144 +2277,120 @@ function CollectionCreateDialog({ open, onOpenChange, onSubmit, onUploadFile }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>新建知识库</DialogTitle>
           <DialogDescription>
-            先命名并补充用途，再可选上传一份文档，系统会用 MinerU 解析并写入 Qdrant。
+            后台自动分配集合名称，你只需填写展示信息；如需首份文档可直接上传。
           </DialogDescription>
         </DialogHeader>
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          <div className="grid gap-4 md:grid-cols-[1.05fr,0.95fr]">
-            <div className="space-y-3 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60">
-              <div className="flex items-start justify-between rounded-lg bg-emerald-50/70 p-3">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-600">基础信息</p>
-                  <p className="text-sm text-gray-600">用于区分集合、展示标题与权限说明。</p>
-                </div>
-                <Sparkles className="h-4 w-4 text-emerald-500" />
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-3 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/60">
+            <div className="flex items-start justify-between rounded-lg bg-emerald-50/70 p-3">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-600">基础信息</p>
+                <p className="text-sm text-gray-600">仅需填写展示信息，集合名由后台自动生成。</p>
               </div>
+              <Sparkles className="h-4 w-4 text-emerald-500" />
+            </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="collection-name">集合名称</Label>
-                  <Input
-                    id="collection-name"
-                    placeholder="如 policy-v1"
-                    value={form.name}
-                    onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                    required
-                  />
-                  <p className="mt-1 text-xs text-gray-500">建议使用小写与中划线，便于与 Qdrant 对齐。</p>
-                </div>
-
-                <div>
-                  <Label htmlFor="collection-display">
-                    展示名称 <span className="text-gray-400">(可选)</span>
-                  </Label>
-                  <Input
-                    id="collection-display"
-                    placeholder="如 财务制度知识库"
-                    value={form.displayName}
-                    onChange={(event) => setForm((prev) => ({ ...prev, displayName: event.target.value }))}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">用于列表与详情展示，默认跟随集合名称。</p>
-                </div>
-              </div>
-
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="collection-description">
-                  描述 <span className="text-gray-400">(可选)</span>
-                </Label>
-                <Textarea
-                  id="collection-description"
-                  placeholder="补充用途、访问范围或对接系统"
-                  value={form.description}
-                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                  rows={3}
+                <Label htmlFor="collection-display">展示名称</Label>
+                <Input
+                  id="collection-display"
+                  placeholder="如 财务制度知识库"
+                  value={form.displayName}
+                  onChange={(event) => setForm((prev) => ({ ...prev, displayName: event.target.value }))}
+                  required
                 />
+                <p className="mt-1 text-xs text-gray-500">用于列表和详情展示，默认值为“新知识库”。</p>
               </div>
 
-              <div className="flex items-center gap-3 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/40 p-3 text-xs text-gray-700">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-white text-emerald-600 shadow-inner">
+              <div className="rounded-lg border border-dashed border-emerald-200 bg-emerald-50/40 p-3 text-xs text-gray-700">
+                <div className="flex items-center gap-2 text-emerald-700">
                   <Layers className="h-4 w-4" />
+                  <span className="text-sm font-medium">固定向量配置</span>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-emerald-700">默认向量配置</p>
-                  <p>系统固定使用 1024 维 · Cosine，相似度兼顾效果与效率。</p>
-                </div>
+                <p className="mt-1">1024 维 · Cosine，无需再配置。</p>
+                <p className="text-[11px] text-emerald-600">集合命名由系统生成，避免冲突。</p>
               </div>
             </div>
 
-            <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4 shadow-inner">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-600">智能导入</p>
-                  <p className="text-sm text-gray-600">可选上传首份文档，自动解析并写入。</p>
-                </div>
-                <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-gray-600 shadow-sm">可选</span>
-              </div>
-
-              <input
-                id="collection-upload"
-                type="file"
-                accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv,.xlsx,.zip,.rar,.7z"
-                onChange={(event) => {
-                  const fileList = event.target.files;
-                  setUploadFile(fileList && fileList[0] ? fileList[0] : null);
-                }}
-                className="hidden"
+            <div>
+              <Label htmlFor="collection-description">
+                描述 <span className="text-gray-400">(可选)</span>
+              </Label>
+              <Textarea
+                id="collection-description"
+                placeholder="补充用途、访问范围或对接系统"
+                value={form.description}
+                onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                rows={3}
               />
-              <label
-                htmlFor="collection-upload"
-                className="group block cursor-pointer rounded-xl border-2 border-dashed border-emerald-200 bg-white/80 p-4 transition hover:border-emerald-400 hover:bg-emerald-50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
-                    <Upload className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">拖拽或点击上传</p>
-                    <p className="text-xs text-gray-500">自动调用 MinerU 解析 Markdown，稍后入库</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-                  <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">PDF / Office / ZIP / MD</span>
-                  <span className="rounded-full bg-gray-100 px-2 py-1">单文件 &lt;= 50MB</span>
-                  <span className="rounded-full bg-gray-100 px-2 py-1">支持中文与英文</span>
-                </div>
-              </label>
+            </div>
+          </div>
 
-              {uploadFile ? (
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{uploadFile.name}</p>
-                      <p className="text-xs text-gray-500">{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-8" type="button" onClick={() => setUploadFile(null)}>
-                    清除
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-xs text-gray-500">提交后会排队写入，解析结果将同步到知识库详情。</p>
-              )}
+          <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4 shadow-inner">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-600">智能导入</p>
+                <p className="text-sm text-gray-600">可选上传一份文档，自动解析并入库。</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-gray-600 shadow-sm">可选</span>
+            </div>
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-lg bg-white p-3 text-xs text-gray-600 shadow-sm">
-                  <p className="font-semibold text-gray-800">解析 · MinerU</p>
-                  <p className="mt-1">自动切分、提炼摘要，减少重复上传。</p>
+            <input
+              id="collection-upload"
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.csv,.xlsx,.zip,.rar,.7z"
+              onChange={(event) => {
+                const fileList = event.target.files;
+                setUploadFile(fileList && fileList[0] ? fileList[0] : null);
+              }}
+              className="hidden"
+            />
+            <label
+              htmlFor="collection-upload"
+              className="group block cursor-pointer rounded-xl border-2 border-dashed border-emerald-200 bg-white/80 p-4 transition hover:border-emerald-400 hover:bg-emerald-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+                  <Upload className="h-5 w-5" />
                 </div>
-                <div className="rounded-lg bg-white p-3 text-xs text-gray-600 shadow-sm">
-                  <p className="font-semibold text-gray-800">入库 · Qdrant</p>
-                  <p className="mt-1">解析完成后直接写入目标集合，无需再次配置。</p>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">拖拽或点击上传</p>
+                  <p className="text-xs text-gray-500">自动调用 MinerU 解析 Markdown，稍后入库</p>
                 </div>
               </div>
-            </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">PDF / Office / ZIP / MD</span>
+                <span className="rounded-full bg-gray-100 px-2 py-1">单文件 &lt;= 50MB</span>
+                <span className="rounded-full bg-gray-100 px-2 py-1">支持中文与英文</span>
+              </div>
+            </label>
+
+            {uploadFile ? (
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-1">{uploadFile.name}</p>
+                    <p className="text-xs text-gray-500">{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" className="h-8" type="button" onClick={() => setUploadFile(null)}>
+                  清除
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-white p-3 text-xs text-gray-600">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span>不上传也可稍后从详情页添加文档。</span>
+              </div>
+            )}
           </div>
 
           {error ? <p className="text-sm text-red-500">{error}</p> : null}

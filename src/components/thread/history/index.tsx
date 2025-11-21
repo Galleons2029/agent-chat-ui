@@ -12,7 +12,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PanelRightOpen, PanelRightClose } from "lucide-react";
+import { PanelRightOpen, PanelRightClose, Trash2, MessageSquare } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +24,7 @@ function ThreadList({
   onThreadClick?: (threadId: string) => void;
 }) {
   const [threadId, setThreadId] = useQueryState("threadId");
+  const { deleteThread } = useThreads();
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col items-start justify-start gap-2 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent">
@@ -39,18 +40,20 @@ function ThreadList({
           const firstMessage = t.values.messages[0];
           itemText = getContentString(firstMessage.content);
         }
+        const isActive = threadId === t.thread_id;
+
         return (
           <div
             key={t.thread_id}
-            className="w-full px-1.5"
+            className="group relative w-full px-2 py-1"
           >
             <Button
               variant="ghost"
               className={cn(
-                "w-full items-start justify-start rounded-2xl text-left font-normal shadow-sm transition",
-                threadId === t.thread_id
-                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-500"
-                  : "bg-white/60 text-emerald-950 hover:bg-white",
+                "w-full justify-start rounded-xl px-3 py-6 text-left font-normal transition-all duration-200 ease-in-out",
+                isActive
+                  ? "bg-emerald-50 text-emerald-900 shadow-sm ring-1 ring-emerald-200"
+                  : "text-gray-600 hover:bg-white hover:text-gray-900 hover:shadow-sm",
               )}
               onClick={(e) => {
                 e.preventDefault();
@@ -59,8 +62,36 @@ function ThreadList({
                 setThreadId(t.thread_id);
               }}
             >
-              <p className="truncate text-ellipsis">{itemText}</p>
+              <div className="flex w-full items-center gap-3 overflow-hidden">
+                <MessageSquare
+                  className={cn(
+                    "size-4 shrink-0",
+                    isActive ? "text-emerald-600" : "text-gray-400 group-hover:text-gray-500"
+                  )}
+                />
+                <p className="truncate text-sm">{itemText}</p>
+              </div>
             </Button>
+
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (confirm("确定要删除这条对话吗？")) {
+                    await deleteThread(t.thread_id);
+                    if (isActive) {
+                      setThreadId(null);
+                    }
+                  }
+                }}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
           </div>
         );
       })}
@@ -102,47 +133,27 @@ export default function ThreadHistory() {
 
   return (
     <>
-      <aside className="shadow-inner-right relative hidden h-full min-h-0 w-[320px] shrink-0 flex flex-col overflow-hidden rounded-tr-3xl bg-gradient-to-b from-white via-emerald-50/20 to-white/95 pb-6 pt-0 text-emerald-950 backdrop-blur-xl lg:flex">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-tr-3xl border border-white/60"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-tr-3xl ring-1 ring-inset ring-emerald-100/60"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-5 -top-6 h-6 rounded-t-3xl bg-white/90 shadow-[0_25px_60px_rgba(16,185,129,0.25)]"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-4 right-0 w-[2px] rounded-full bg-gradient-to-b from-transparent via-emerald-300/80 to-transparent blur-[0.5px]"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-10 -right-6 w-16 bg-gradient-to-b from-emerald-500/15 via-emerald-400/5 to-emerald-500/15 blur-3xl"
-        />
-
-        <div className="relative z-10 flex h-full flex-col">
-          <div className="flex w-full items-center justify-between border-b border-white/40 px-5 pb-3 pt-3">
-            <h1 className="text-lg font-semibold tracking-tight">
-              对话历史
-            </h1>
+      <aside className="group/sidebar relative hidden h-full min-h-0 w-[280px] shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-gray-50/50 transition-all duration-300 ease-in-out lg:flex">
+        <div className="flex h-full flex-col">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              历史记录
+            </span>
             <Button
-              className="hover:bg-gray-100"
               variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-gray-400 hover:text-gray-600"
               onClick={() => setChatHistoryOpen((p) => !p)}
             >
               {chatHistoryOpen ? (
-                <PanelRightOpen className="size-5" />
+                <PanelRightOpen className="size-4" />
               ) : (
-                <PanelRightClose className="size-5" />
+                <PanelRightClose className="size-4" />
               )}
             </Button>
           </div>
 
-          <div className="flex-1 min-h-0 px-5 pt-4">
+          <div className="flex-1 min-h-0 px-2 pb-4">
             {threadsLoading ? (
               <ThreadHistoryLoading />
             ) : (

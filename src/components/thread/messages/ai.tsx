@@ -11,7 +11,6 @@ import { MessageContentComplex } from "@langchain/core/messages";
 import { Fragment } from "react/jsx-runtime";
 import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
-import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
 import {
@@ -98,7 +97,7 @@ function Interrupt({
   const fallbackValue = Array.isArray(interrupt)
     ? (interrupt as Record<string, any>[])
     : (((interrupt as { value?: unknown } | undefined)?.value ??
-        interrupt) as Record<string, any>);
+      interrupt) as Record<string, any>);
 
   return (
     <>
@@ -107,8 +106,8 @@ function Interrupt({
           <ThreadView interrupt={interrupt} />
         )}
       {interrupt &&
-      !isAgentInboxInterruptSchema(interrupt) &&
-      (isLastMessage || hasNoAIOrToolMessages) ? (
+        !isAgentInboxInterruptSchema(interrupt) &&
+        (isLastMessage || hasNoAIOrToolMessages) ? (
         <GenericInterruptView interrupt={fallbackValue} />
       ) : null}
     </>
@@ -126,10 +125,6 @@ export function AssistantMessage({
 }) {
   const content = message?.content ?? [];
   const contentString = getContentString(content);
-  const [hideToolCalls] = useQueryState(
-    "hideToolCalls",
-    parseAsBoolean.withDefault(false),
-  );
 
   const thread = useStreamContext();
   const isLastMessage =
@@ -170,10 +165,6 @@ export function AssistantMessage({
     frontendComponentConfig || backendComponents?.length
   );
 
-  if (isToolResult && hideToolCalls) {
-    return null;
-  }
-
   return (
     <div
       className={cn(
@@ -189,7 +180,7 @@ export function AssistantMessage({
       >
         {isToolResult ? (
           <>
-            <ToolResult message={message} />
+            <ToolResult message={message} isLoading={isLoading && isLastMessage} />
             <Interrupt
               interrupt={threadInterrupt}
               isLastMessage={isLastMessage}
@@ -204,19 +195,15 @@ export function AssistantMessage({
               </div>
             )}
 
-            {!hideToolCalls && (
-              <>
-                {(hasToolCalls && toolCallsHaveContents && (
-                  <ToolCalls toolCalls={message.tool_calls} />
-                )) ||
-                  (hasAnthropicToolCalls && (
-                    <ToolCalls toolCalls={anthropicStreamedToolCalls} />
-                  )) ||
-                  (hasToolCalls && (
-                    <ToolCalls toolCalls={message.tool_calls} />
-                  ))}
-              </>
-            )}
+            {(hasToolCalls && toolCallsHaveContents && (
+              <ToolCalls toolCalls={message.tool_calls} isLoading={isLoading && isLastMessage} />
+            )) ||
+              (hasAnthropicToolCalls && (
+                <ToolCalls toolCalls={anthropicStreamedToolCalls} isLoading={isLoading && isLastMessage} />
+              )) ||
+              (hasToolCalls && (
+                <ToolCalls toolCalls={message.tool_calls} isLoading={isLoading && isLastMessage} />
+              ))}
 
             {message && (
               <CustomComponent
