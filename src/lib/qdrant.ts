@@ -1,6 +1,8 @@
-const DEFAULT_QDRANT_URL = process.env.QDRANT_URL ?? "http://127.0.0.1:6333";
+const DEFAULT_QDRANT_URL = process.env.QDRANT_URL ?? "http://10.11.12.30:6333";
 
-export const KNOWLEDGE_METADATA_POINT_ID = "__knowledge_metadata__";
+// Qdrant only accepts numeric IDs or UUIDs; use a fixed UUID for the metadata record.
+export const KNOWLEDGE_METADATA_POINT_ID =
+  "00000000-0000-0000-0000-000000000000";
 
 type VectorParams =
   | number

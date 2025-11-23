@@ -10,6 +10,9 @@ services:
       NODE_ENV: development
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
+      NEXT_PUBLIC_API_URL: http://47.96.184.200:3000/api
+      NEXT_PUBLIC_ASSISTANT_ID: agent
+      LANGGRAPH_API_URL: http://10.11.12.30:2024
     volumes:
       - .:/app
       - node_modules:/app/node_modules
