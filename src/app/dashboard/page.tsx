@@ -103,6 +103,15 @@ type AIGuidanceIntent = {
   prompt: string;
 };
 
+type NotificationItem = {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  sender: string;
+  isRead: boolean;
+};
+
 type UserProfile = {
   displayName: string;
   handle: string;
@@ -127,6 +136,33 @@ type FeaturePanelRenderContext = {
 };
 
 const USER_PROFILE_STORAGE_KEY = 'bankcopilot:profile';
+
+const DEFAULT_ADMIN_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'training-progress',
+    title: '课程进度滞后提醒',
+    message: '《AI+业务操作规范》必修课完成率不足 60%，请在本周五前补齐第 3 单元。',
+    time: '今天 09:20',
+    sender: '管理员 · 培训中心',
+    isRead: false,
+  },
+  {
+    id: 'aml-bootcamp',
+    title: '补训安排确认',
+    message: '本周三 15:00 安排《反洗钱智能审核》补训，请提前完成课前测验并确认出勤。',
+    time: '昨天 18:45',
+    sender: '管理员 · 学习发展部',
+    isRead: false,
+  },
+  {
+    id: 'privacy-course',
+    title: '考核前课程提醒',
+    message: '距季度考核还有 5 天，《数据合规与客户隐私》剩余 2 节课程未完成。',
+    time: '周一 10:05',
+    sender: '管理员 · 运营管理部',
+    isRead: false,
+  },
+];
 
 const DEFAULT_USER_PROFILE: UserProfile = {
   displayName: '张会计',
@@ -963,6 +999,57 @@ type DashboardHeaderProps = {
 };
 
 function DashboardHeader({ title, description }: DashboardHeaderProps) {
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(DEFAULT_ADMIN_NOTIFICATIONS);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
+  const unreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications],
+  );
+
+  useEffect(() => {
+    if (!isNotificationsOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!notificationRef.current?.contains(event.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isNotificationsOpen]);
+
+  const handleToggleNotifications = useCallback(
+    () => setIsNotificationsOpen((prev) => !prev),
+    [],
+  );
+
+  const handleMarkAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })));
+  }, []);
+
+  const handleMarkRead = useCallback((id: string) => {
+    setNotifications((prev) =>
+      prev.map((notification) =>
+        notification.id === id ? { ...notification, isRead: true } : notification,
+      ),
+    );
+  }, []);
+
   return (
     <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
       <div>
@@ -990,11 +1077,99 @@ function DashboardHeader({ title, description }: DashboardHeaderProps) {
           </div>
         </div>
 
-        <div className="relative">
-          <Bell size={25} className="text-gray-600 cursor-pointer" />
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-            3
-          </span>
+        <div ref={notificationRef} className="relative">
+          <button
+            type="button"
+            onClick={handleToggleNotifications}
+            aria-label="查看管理员通知"
+            aria-expanded={isNotificationsOpen}
+            aria-haspopup="dialog"
+            className={cn(
+              'relative flex h-10 w-10 items-center justify-center rounded-xl border text-gray-600 transition',
+              isNotificationsOpen
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+                : 'border-gray-200 bg-white hover:border-emerald-100 hover:text-emerald-700',
+            )}
+          >
+            <Bell size={20} />
+            {unreadCount > 0 ? (
+              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-rose-500/30 blur-sm" />
+            ) : null}
+            {unreadCount > 0 ? (
+              <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-semibold text-white shadow-sm">
+                {unreadCount}
+              </span>
+            ) : null}
+          </button>
+
+          {isNotificationsOpen ? (
+            <div
+              role="dialog"
+              aria-label="管理员通知列表"
+              className="absolute right-0 z-50 mt-3 w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">管理员通知</p>
+                  <p className="text-xs text-gray-500">
+                    培训督办 · {unreadCount > 0 ? `${unreadCount} 条未读` : '已全部读完'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  className="text-xs font-medium text-emerald-600 transition hover:text-emerald-700"
+                >
+                  全部已读
+                </button>
+              </div>
+              <div className="max-h-80 space-y-2 overflow-auto p-3">
+                {notifications.map((notification) => {
+                  const isUnread = !notification.isRead;
+                  return (
+                    <button
+                      key={notification.id}
+                      type="button"
+                      onClick={() => handleMarkRead(notification.id)}
+                      className={cn(
+                        'w-full rounded-xl border px-3 py-2 text-left transition',
+                        isUnread
+                          ? 'border-emerald-100 bg-emerald-50/70 shadow-sm shadow-emerald-100/40'
+                          : 'border-gray-100 bg-white hover:bg-gray-50',
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            'mt-1 flex h-8 w-8 items-center justify-center rounded-lg',
+                            isUnread ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500',
+                          )}
+                        >
+                          <GraduationCap className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                            {isUnread ? (
+                              <span className="mt-1 h-2 w-2 rounded-full bg-rose-500" />
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-gray-600">{notification.message}</p>
+                          <div className="flex items-center justify-between text-[11px] text-gray-500">
+                            <span>{notification.sender}</span>
+                            <span>{notification.time}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-500">
+                点击通知可标记为已读，方便跟进培训进度。
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </header>

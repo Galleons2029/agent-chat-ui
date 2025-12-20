@@ -4,6 +4,7 @@ import React, {
   ReactNode,
   useState,
   useEffect,
+  useMemo,
 } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { type Message } from "@langchain/langgraph-sdk";
@@ -28,6 +29,7 @@ export type StateType = {
   llm_calls?: number;
   kg?: string[];
   user_name?: string;
+  user_id?: string;
   ui?: UIMessage[];
   context?: Record<string, unknown>;
 };
@@ -37,8 +39,86 @@ type StreamUpdateType = {
   llm_calls?: number;
   kg?: string[];
   user_name?: string;
+  user_id?: string;
   ui?: (UIMessage | RemoveUIMessage)[] | UIMessage | RemoveUIMessage;
   context?: Record<string, unknown>;
+};
+
+type UserIdentity = {
+  user_name: string;
+  user_id: string;
+};
+
+const USER_PROFILE_STORAGE_KEY = "bankcopilot:profile";
+const USER_ID_STORAGE_KEY = "bankcopilot:user_id";
+const DEFAULT_USER_NAME = "guest";
+const DEFAULT_USER_ID = "user_default";
+
+const readLocalStorage = (key: string): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const getStoredUserName = (): string | null => {
+  const raw = readLocalStorage(USER_PROFILE_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      displayName?: string;
+      handle?: string;
+      name?: string;
+    };
+    const candidate =
+      parsed.displayName?.trim() ||
+      parsed.handle?.trim() ||
+      parsed.name?.trim();
+    return candidate || null;
+  } catch {
+    return null;
+  }
+};
+
+const createUserId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `user_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+};
+
+const resolveUserId = () => {
+  const stored = readLocalStorage(USER_ID_STORAGE_KEY);
+  if (stored && stored.trim().length > 0) {
+    return stored.trim();
+  }
+  if (typeof window === "undefined") {
+    return DEFAULT_USER_ID;
+  }
+  const created = createUserId();
+  try {
+    window.localStorage.setItem(USER_ID_STORAGE_KEY, created);
+  } catch {
+    // Ignore storage failures (private mode, storage full, etc.).
+  }
+  return created;
+};
+
+export const resolveUserIdentity = (
+  overrides?: Partial<UserIdentity>,
+): UserIdentity => {
+  const user_name =
+    getStoredUserName() ||
+    overrides?.user_name?.trim() ||
+    DEFAULT_USER_NAME;
+  const user_id = resolveUserId() || overrides?.user_id?.trim() || DEFAULT_USER_ID;
+  return { user_name, user_id };
 };
 
 const useTypedStream = useStream<
@@ -160,11 +240,17 @@ const StreamSession = ({
 }) => {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { getThreads, setThreads } = useThreads();
+  const initialIdentity = useMemo(() => resolveUserIdentity(), []);
   const streamValue = useTypedStream({
     apiUrl,
     apiKey: apiKey ?? undefined,
     assistantId,
     threadId: threadId ?? null,
+    initialValues: {
+      messages: [],
+      user_name: initialIdentity.user_name,
+      user_id: initialIdentity.user_id,
+    },
     fetchStateHistory: true,
     onUpdateEvent: (event, options) => {
       options.mutate((prev) => applyUpdateEvent(prev, event));

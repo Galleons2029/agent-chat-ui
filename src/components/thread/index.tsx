@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ReactNode, useEffect, useMemo, useRef, useState, FormEvent } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useStreamContext } from "@/providers/Stream";
+import { resolveUserIdentity, useStreamContext } from "@/providers/Stream";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { AssistantMessage, AssistantMessageLoading } from "./messages/ai";
@@ -305,12 +305,17 @@ export function Thread({
         : Array.isArray(stream.values.kg)
           ? stream.values.kg
           : undefined;
+    const identity = resolveUserIdentity({
+      user_name: stream.values.user_name,
+      user_id: stream.values.user_id,
+    });
     const agentStateUpdate = {
       ...(typeof stream.values.llm_calls === "number"
         ? { llm_calls: stream.values.llm_calls }
         : {}),
       ...(resolvedKg !== undefined ? { kg: resolvedKg } : {}),
-      ...(stream.values.user_name ? { user_name: stream.values.user_name } : {}),
+      user_name: identity.user_name,
+      user_id: identity.user_id,
     };
     const stateUpdate = {
       ...agentStateUpdate,
