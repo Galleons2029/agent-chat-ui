@@ -1,9 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState, FormEvent } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useStreamContext } from "@/providers/Stream";
-import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
 import { AssistantMessage, AssistantMessageLoading } from "./messages/ai";
@@ -15,6 +14,10 @@ import {
 import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   ArrowDown,
+  Bot,
+  Check,
+  ChevronDown,
+  Database,
   LoaderCircle,
   PanelRightOpen,
   PanelRightClose,
@@ -40,6 +43,16 @@ import {
 
 type ThreadProps = {
   className?: string;
+  allowUploads?: boolean;
+  agentOptions?: Array<{ id: string; label: string }>;
+  selectedAgentId?: string;
+  agentDefaultId?: string;
+  onSelectAgent?: (id: string) => void;
+  knowledgeOptions?: Array<{ id: string; label: string; description?: string }>;
+  selectedKnowledgeIds?: string[];
+  onKnowledgeChange?: (ids: string[]) => void;
+  knowledgeLoading?: boolean;
+  kgOverride?: string[];
 };
 
 const HISTORY_PANEL_WIDTH = 320;
@@ -85,7 +98,19 @@ function ScrollToBottom(props: { className?: string }) {
   );
 }
 
-export function Thread({ className }: ThreadProps = {}) {
+export function Thread({
+  className,
+  allowUploads = true,
+  agentOptions,
+  selectedAgentId,
+  agentDefaultId,
+  onSelectAgent,
+  knowledgeOptions,
+  selectedKnowledgeIds,
+  onKnowledgeChange,
+  knowledgeLoading = false,
+  kgOverride,
+}: ThreadProps = {}) {
   const [artifactContext, setArtifactContext] = useArtifactContext();
   const [artifactOpen, closeArtifact] = useArtifactOpen();
 
@@ -99,6 +124,10 @@ export function Thread({ className }: ThreadProps = {}) {
     parseAsBoolean.withDefault(false),
   );
   const [input, setInput] = useState("");
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  const [knowledgeMenuOpen, setKnowledgeMenuOpen] = useState(false);
+  const agentMenuRef = useRef<HTMLDivElement | null>(null);
+  const knowledgeMenuRef = useRef<HTMLDivElement | null>(null);
   const {
     contentBlocks,
     setContentBlocks,
@@ -108,9 +137,35 @@ export function Thread({ className }: ThreadProps = {}) {
     resetBlocks: _resetBlocks,
     dragOver,
     handlePaste,
-  } = useFileUpload();
+  } = useFileUpload({ enabled: allowUploads });
   const [firstTokenReceived, setFirstTokenReceived] = useState(false);
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
+  const showAgentSelector =
+    Boolean(agentOptions?.length) && typeof onSelectAgent === "function";
+  const showKnowledgeSelector =
+    Boolean(knowledgeOptions) &&
+    typeof onKnowledgeChange === "function" &&
+    Array.isArray(selectedKnowledgeIds);
+  const selectedAgent = useMemo(
+    () =>
+      agentOptions?.find((option) => option.id === selectedAgentId) ??
+      agentOptions?.[0],
+    [agentOptions, selectedAgentId],
+  );
+  const selectedAgentLabel = selectedAgent?.label ?? "选择助手";
+  const showClearAgent =
+    showAgentSelector &&
+    agentDefaultId &&
+    selectedAgentId &&
+    agentDefaultId !== selectedAgentId;
+  const knowledgeSelectionLabel = useMemo(() => {
+    if (!showKnowledgeSelector || !selectedKnowledgeIds) {
+      return "选择知识库";
+    }
+    return selectedKnowledgeIds.length > 0
+      ? `已选 ${selectedKnowledgeIds.length} 个知识库`
+      : "选择知识库";
+  }, [selectedKnowledgeIds, showKnowledgeSelector]);
 
   const stream = useStreamContext();
   const messages = stream.messages;
@@ -125,6 +180,55 @@ export function Thread({ className }: ThreadProps = {}) {
     closeArtifact();
     setArtifactContext({});
   };
+
+  useEffect(() => {
+    if (!allowUploads && contentBlocks.length > 0) {
+      setContentBlocks([]);
+    }
+  }, [allowUploads, contentBlocks.length, setContentBlocks]);
+
+  useEffect(() => {
+    if (!showAgentSelector) {
+      setAgentMenuOpen(false);
+    }
+  }, [showAgentSelector]);
+
+  useEffect(() => {
+    if (!showKnowledgeSelector) {
+      setKnowledgeMenuOpen(false);
+    }
+  }, [showKnowledgeSelector]);
+
+  useEffect(() => {
+    if (!agentMenuOpen && !knowledgeMenuOpen) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (agentMenuRef.current?.contains(target)) {
+        return;
+      }
+      if (knowledgeMenuRef.current?.contains(target)) {
+        return;
+      }
+      setAgentMenuOpen(false);
+      setKnowledgeMenuOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAgentMenuOpen(false);
+        setKnowledgeMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [agentMenuOpen, knowledgeMenuOpen]);
 
   useEffect(() => {
     if (!stream.error) {
@@ -170,16 +274,18 @@ export function Thread({ className }: ThreadProps = {}) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if ((input.trim().length === 0 && contentBlocks.length === 0) || isLoading)
+    const hasAttachments = allowUploads && contentBlocks.length > 0;
+    if ((input.trim().length === 0 && !hasAttachments) || isLoading)
       return;
     setFirstTokenReceived(false);
 
+    const attachmentBlocks = allowUploads ? contentBlocks : [];
     const newHumanMessage: Message = {
       id: uuidv4(),
       type: "human",
       content: [
         ...(input.trim().length > 0 ? [{ type: "text", text: input }] : []),
-        ...contentBlocks,
+        ...attachmentBlocks,
       ] as Message["content"],
     };
 
@@ -193,15 +299,33 @@ export function Thread({ className }: ThreadProps = {}) {
           }
         : undefined;
 
+    const resolvedKg =
+      kgOverride !== undefined
+        ? kgOverride
+        : Array.isArray(stream.values.kg)
+          ? stream.values.kg
+          : undefined;
+    const agentStateUpdate = {
+      ...(typeof stream.values.llm_calls === "number"
+        ? { llm_calls: stream.values.llm_calls }
+        : {}),
+      ...(resolvedKg !== undefined ? { kg: resolvedKg } : {}),
+      ...(stream.values.user_name ? { user_name: stream.values.user_name } : {}),
+    };
+    const stateUpdate = {
+      ...agentStateUpdate,
+      ...(context ? { context } : {}),
+    };
+
     stream.submit(
-      { messages: [...toolMessages, newHumanMessage], context },
+      { messages: [...toolMessages, newHumanMessage], ...stateUpdate },
       {
         streamMode: ["values"],
         streamSubgraphs: true,
         streamResumable: true,
         optimisticValues: (prev) => ({
           ...prev,
-          context,
+          ...stateUpdate,
           messages: [
             ...(prev.messages ?? []),
             ...toolMessages,
@@ -233,6 +357,25 @@ export function Thread({ className }: ThreadProps = {}) {
   const hasNoAIOrToolMessages = !messages.find(
     (m) => m.type === "ai" || m.type === "tool",
   );
+  const handleAgentSelect = (id: string) => {
+    onSelectAgent?.(id);
+    setAgentMenuOpen(false);
+  };
+  const handleClearAgent = () => {
+    if (!agentDefaultId) return;
+    onSelectAgent?.(agentDefaultId);
+    setAgentMenuOpen(false);
+  };
+  const handleToggleKnowledge = (id: string) => {
+    if (!onKnowledgeChange || !selectedKnowledgeIds) {
+      return;
+    }
+    if (selectedKnowledgeIds.includes(id)) {
+      onKnowledgeChange(selectedKnowledgeIds.filter((item) => item !== id));
+      return;
+    }
+    onKnowledgeChange([...selectedKnowledgeIds, id]);
+  };
 
   return (
     <div className={cn("flex h-screen w-full overflow-hidden bg-gray-50", className)}>
@@ -421,6 +564,156 @@ export function Thread({ className }: ThreadProps = {}) {
 
                   <ScrollToBottom className="animate-in fade-in-0 zoom-in-95 absolute bottom-full left-1/2 mb-4 -translate-x-1/2" />
 
+                  {(showAgentSelector || showKnowledgeSelector) && (
+                    <div className="mx-auto -mb-4 flex w-full max-w-3xl flex-wrap items-center gap-3 px-3">
+                      {showAgentSelector && (
+                        <div
+                          ref={agentMenuRef}
+                          className="relative flex items-center gap-2"
+                        >
+                          <button
+                            type="button"
+                            aria-haspopup="menu"
+                            aria-expanded={agentMenuOpen}
+                            onClick={() => {
+                              setAgentMenuOpen((prev) => !prev);
+                              setKnowledgeMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2 rounded-full border border-emerald-100 bg-white/90 px-3 py-1.5 text-sm text-gray-700 shadow-xs transition hover:bg-emerald-50"
+                          >
+                            <Bot className="h-4 w-4 text-emerald-600" />
+                            <span>{selectedAgentLabel}</span>
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                          </button>
+                          {showClearAgent && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleClearAgent();
+                              }}
+                              className="flex items-center justify-center rounded-full border border-emerald-100 bg-emerald-50 px-2 py-1 text-emerald-700 transition hover:bg-emerald-100"
+                            >
+                              <XIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {agentMenuOpen && (
+                            <div className="absolute left-0 top-full z-30 mt-2 w-56 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl">
+                              <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                选择助手
+                              </p>
+                              <div className="space-y-1">
+                                {agentOptions?.map((option) => {
+                                  const selected =
+                                    option.id === selectedAgentId;
+                                  return (
+                                    <button
+                                      key={option.id}
+                                      type="button"
+                                      onClick={() =>
+                                        handleAgentSelect(option.id)
+                                      }
+                                      className={cn(
+                                        "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition",
+                                        selected
+                                          ? "bg-emerald-50 text-emerald-700"
+                                          : "text-gray-700 hover:bg-gray-50",
+                                      )}
+                                    >
+                                      <span>{option.label}</span>
+                                      {selected && (
+                                        <Check className="h-4 w-4" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {showKnowledgeSelector && (
+                        <div ref={knowledgeMenuRef} className="relative">
+                          <button
+                            type="button"
+                            aria-haspopup="menu"
+                            aria-expanded={knowledgeMenuOpen}
+                            onClick={() => {
+                              setKnowledgeMenuOpen((prev) => !prev);
+                              setAgentMenuOpen(false);
+                            }}
+                            className="flex items-center gap-2 rounded-full border border-emerald-100 bg-white/90 px-3 py-1.5 text-sm text-gray-700 shadow-xs transition hover:bg-emerald-50"
+                          >
+                            <Database className="h-4 w-4 text-emerald-600" />
+                            <span>{knowledgeSelectionLabel}</span>
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                          </button>
+                          {knowledgeMenuOpen && (
+                            <div className="absolute left-0 top-full z-30 mt-2 w-72 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl">
+                              <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                选择知识库
+                              </p>
+                              {knowledgeLoading ? (
+                                <div className="px-2 py-4 text-sm text-gray-500">
+                                  正在加载知识库...
+                                </div>
+                              ) : knowledgeOptions?.length ? (
+                                <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
+                                  {knowledgeOptions.map((option) => {
+                                    const selected =
+                                      selectedKnowledgeIds?.includes(
+                                        option.id,
+                                      );
+                                    return (
+                                      <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() =>
+                                          handleToggleKnowledge(option.id)
+                                        }
+                                        className={cn(
+                                          "flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
+                                          selected
+                                            ? "bg-emerald-50 text-emerald-700"
+                                            : "text-gray-700 hover:bg-gray-50",
+                                        )}
+                                      >
+                                        <span className="flex flex-col gap-1">
+                                          <span className="font-medium">
+                                            {option.label}
+                                          </span>
+                                          {option.description ? (
+                                            <span className="text-xs text-gray-400">
+                                              {option.description}
+                                            </span>
+                                          ) : null}
+                                        </span>
+                                        <span
+                                          className={cn(
+                                            "mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border",
+                                            selected
+                                              ? "border-emerald-500 bg-emerald-500 text-white"
+                                              : "border-gray-200 text-transparent",
+                                          )}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="px-2 py-4 text-sm text-gray-500">
+                                  暂无知识库，请先在知识库模块中创建。
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div
                     ref={dropRef}
                     className={cn(
@@ -435,13 +728,13 @@ export function Thread({ className }: ThreadProps = {}) {
                       className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2"
                     >
                       <ContentBlocksPreview
-                        blocks={contentBlocks}
+                        blocks={allowUploads ? contentBlocks : []}
                         onRemove={removeBlock}
                       />
                       <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onPaste={handlePaste}
+                        onPaste={allowUploads ? handlePaste : undefined}
                         onKeyDown={(e) => {
                           if (
                             e.key === "Enter" &&
@@ -459,39 +752,43 @@ export function Thread({ className }: ThreadProps = {}) {
                         className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
-                      <div className="flex items-center gap-6 p-2 pt-4">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="enable-web-search"
-                            checked={enableWebSearch ?? false}
-                            onCheckedChange={setEnableWebSearch}
-                          />
-                          <Label
-                            htmlFor="enable-web-search"
-                            className="text-sm text-gray-600"
-                          >
-                            联网搜索
-                          </Label>
+                      <div className="flex flex-wrap items-center gap-6 p-2 pt-4">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="enable-web-search"
+                              checked={enableWebSearch ?? false}
+                              onCheckedChange={setEnableWebSearch}
+                            />
+                            <Label
+                              htmlFor="enable-web-search"
+                              className="text-sm text-gray-600"
+                            >
+                              联网搜索
+                            </Label>
+                          </div>
                         </div>
-                      </div>
-                        <Label
-                          htmlFor="file-input"
-                          className="flex cursor-pointer items-center gap-2"
-                        >
-                          <Plus className="size-5 text-gray-600" />
-                          <span className="text-sm text-gray-600">
-                            上传 PDF 或图片
-                          </span>
-                        </Label>
-                        <input
-                          id="file-input"
-                          type="file"
-                          onChange={handleFileUpload}
-                          multiple
-                          accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                          className="hidden"
-                        />
+                        {allowUploads && (
+                          <>
+                            <Label
+                              htmlFor="file-input"
+                              className="flex cursor-pointer items-center gap-2"
+                            >
+                              <Plus className="size-5 text-gray-600" />
+                              <span className="text-sm text-gray-600">
+                                上传 PDF 或图片
+                              </span>
+                            </Label>
+                            <input
+                              id="file-input"
+                              type="file"
+                              onChange={handleFileUpload}
+                              multiple
+                              accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                              className="hidden"
+                            />
+                          </>
+                        )}
                         {stream.isLoading ? (
                           <Button
                             key="stop"
@@ -507,7 +804,8 @@ export function Thread({ className }: ThreadProps = {}) {
                             className="ml-auto shadow-md transition-all"
                             disabled={
                               isLoading ||
-                              (!input.trim() && contentBlocks.length === 0)
+                              (!input.trim() &&
+                                (!allowUploads || contentBlocks.length === 0))
                             }
                           >
                             发送

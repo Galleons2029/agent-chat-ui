@@ -13,10 +13,12 @@ export const SUPPORTED_FILE_TYPES = [
 
 interface UseFileUploadOptions {
   initialBlocks?: ContentBlock.Multimodal.Data[];
+  enabled?: boolean;
 }
 
 export function useFileUpload({
   initialBlocks = [],
+  enabled = true,
 }: UseFileUploadOptions = {}) {
   const [contentBlocks, setContentBlocks] =
     useState<ContentBlock.Multimodal.Data[]>(initialBlocks);
@@ -45,6 +47,7 @@ export function useFileUpload({
   };
 
   const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (!enabled) return;
     const files = e.target.files;
     if (!files) return;
     const fileArray = Array.from(files);
@@ -81,6 +84,11 @@ export function useFileUpload({
 
   // Drag and drop handlers
   useEffect(() => {
+    if (!enabled) {
+      dragCounter.current = 0;
+      setDragOver(false);
+      return;
+    }
     if (!dropRef.current) return;
 
     // Global drag events with counter for robust dragOver state
@@ -185,7 +193,7 @@ export function useFileUpload({
       window.removeEventListener("dragover", handleWindowDragOver);
       dragCounter.current = 0;
     };
-  }, [contentBlocks]);
+  }, [contentBlocks, enabled]);
 
   const removeBlock = (idx: number) => {
     setContentBlocks((prev) => prev.filter((_, i) => i !== idx));
@@ -200,6 +208,7 @@ export function useFileUpload({
   const handlePaste = async (
     e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>,
   ) => {
+    if (!enabled) return;
     const items = e.clipboardData.items;
     if (!items) return;
     const files: File[] = [];

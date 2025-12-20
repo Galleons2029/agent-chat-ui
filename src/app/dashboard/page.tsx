@@ -2,6 +2,7 @@
 import { AccountPanel } from '@/app/account/account-panel';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryState } from 'nuqs';
 import {
   CartesianGrid,
   Cell,
@@ -59,6 +60,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  resolveAssistantId,
+  resolveAssistantOptions,
+  type AssistantOptionId,
+} from "@/lib/langgraph-config";
 import { toast } from "sonner";
 import type { KnowledgeBase, KnowledgeChunk } from "@/types/knowledge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -97,12 +103,114 @@ type AIGuidanceIntent = {
   prompt: string;
 };
 
+type UserProfile = {
+  displayName: string;
+  handle: string;
+  role: string;
+  department: string;
+  email: string;
+  phone: string;
+  location: string;
+  learningTarget: string;
+  focusArea: string;
+  note: string;
+};
+
 type FeaturePanelRenderContext = {
   openPanel: (id: PanelId) => void;
   startAIGuidance: (intent: AIGuidanceIntent) => void;
   aiGuidanceIntent: AIGuidanceIntent | null;
   clearAIGuidance: () => void;
+  userProfile: UserProfile;
+  knowledgeCollections: KnowledgeBase[];
+  setKnowledgeCollections: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>;
 };
+
+const USER_PROFILE_STORAGE_KEY = 'bankcopilot:profile';
+
+const DEFAULT_USER_PROFILE: UserProfile = {
+  displayName: '张会计',
+  handle: '@finance.ops',
+  role: '财务共享中心',
+  department: '对公运营部',
+  email: 'zhang@bankcopilot.cn',
+  phone: '138-0000-5678',
+  location: '苏州 · 金融港',
+  learningTarget: '数字风控分析师',
+  focusArea: '账户异常识别与资金安全',
+  note: '',
+};
+
+const normalizeHandle = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
+};
+
+const sanitizeUserProfile = (profile: UserProfile): UserProfile => {
+  const displayName = profile.displayName.trim() || DEFAULT_USER_PROFILE.displayName;
+  const handle = normalizeHandle(profile.handle.trim() || DEFAULT_USER_PROFILE.handle);
+
+  return {
+    ...profile,
+    displayName,
+    handle,
+    role: profile.role.trim(),
+    department: profile.department.trim(),
+    email: profile.email.trim(),
+    phone: profile.phone.trim(),
+    location: profile.location.trim(),
+    learningTarget: profile.learningTarget.trim(),
+    focusArea: profile.focusArea.trim(),
+    note: profile.note.trim(),
+  };
+};
+
+const loadUserProfile = (): UserProfile => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_USER_PROFILE;
+  }
+  try {
+    const raw = window.localStorage.getItem(USER_PROFILE_STORAGE_KEY);
+    if (!raw) {
+      return DEFAULT_USER_PROFILE;
+    }
+    const parsed = JSON.parse(raw) as Partial<UserProfile>;
+    return sanitizeUserProfile({ ...DEFAULT_USER_PROFILE, ...parsed });
+  } catch {
+    return DEFAULT_USER_PROFILE;
+  }
+};
+
+const saveUserProfile = (profile: UserProfile) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  } catch {
+    // Ignore storage failures (private mode, storage full, etc.).
+  }
+};
+
+const getAvatarLabel = (displayName: string) => {
+  const trimmed = displayName.trim();
+  if (!trimmed) {
+    return 'U';
+  }
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  if (/[\u4e00-\u9fff]/.test(trimmed)) {
+    return trimmed.slice(-2);
+  }
+  return trimmed.slice(0, 2).toUpperCase();
+};
+
+const getAvatarShort = (displayName: string) => getAvatarLabel(displayName).slice(0, 1);
 
 const navigationItems = [
   { id: 'ai', label: 'AI 助手', icon: Bot, color: 'bg-emerald-500' },
@@ -327,13 +435,18 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
     title: 'AI 助手',
     description: '构建智能问答流程，辅助内部员工完成业务咨询',
     render: (context) => (
-      <AIChatPanel guidanceIntent={context?.aiGuidanceIntent} onClearGuidance={context?.clearAIGuidance} />
+      <AIChatPanel
+        guidanceIntent={context?.aiGuidanceIntent}
+        onClearGuidance={context?.clearAIGuidance}
+        knowledgeCollections={context?.knowledgeCollections}
+        onKnowledgeCollectionsChange={context?.setKnowledgeCollections}
+      />
     ),
   },
   knowledge: {
     title: '知识库',
     description: '沉淀文档、政策与规范，供其他模块调用',
-    render: () => <KnowledgeBasePanel />,
+    render: (context) => <KnowledgeBasePanel onCollectionsChange={context?.setKnowledgeCollections} />,
   },
   accounts: {
     title: '总分查账',
@@ -345,6 +458,7 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
     description: '记录个人学习轨迹、知识点掌握情况，并联动 AI 助手生成计划。',
     render: (context) => (
       <PersonalLearningPanel
+        profile={context?.userProfile}
         onGuide={(intent) => context?.startAIGuidance(intent)}
       />
     ),
@@ -359,16 +473,120 @@ const featurePanels: Record<PanelId, FeaturePanel> = {
 type AIChatPanelProps = {
   guidanceIntent?: AIGuidanceIntent | null;
   onClearGuidance?: () => void;
+  knowledgeCollections?: KnowledgeBase[];
+  onKnowledgeCollectionsChange?: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>;
 };
 
-function AIChatPanel({ guidanceIntent, onClearGuidance }: AIChatPanelProps) {
+function AIChatPanel({
+  guidanceIntent,
+  onClearGuidance,
+  knowledgeCollections = [],
+  onKnowledgeCollectionsChange,
+}: AIChatPanelProps) {
   const [copied, setCopied] = useState(false);
+  const assistantOptions = useMemo(() => resolveAssistantOptions(), []);
+  const defaultAssistantKey: AssistantOptionId = assistantOptions[0]?.id ?? 'default';
+  const [selectedAssistantKey, setSelectedAssistantKey] =
+    useState<AssistantOptionId>(defaultAssistantKey);
+  const [selectedKnowledgeIds, setSelectedKnowledgeIds] = useState<string[]>([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [, setThreadId] = useQueryState('threadId');
+  const hasRequestedKnowledge = useRef(false);
+  const previousAssistantKeyRef = useRef<string | null>(null);
+  const activeAssistant = useMemo(
+    () =>
+      assistantOptions.find((option) => option.id === selectedAssistantKey) ??
+      assistantOptions[0],
+    [assistantOptions, selectedAssistantKey],
+  );
+  const activeAssistantId = activeAssistant?.assistantId ?? resolveAssistantId();
+  const showKnowledgeSelector =
+    selectedAssistantKey === 'knowledge' ||
+    selectedAssistantKey === 'training';
+  const allowUploads = selectedAssistantKey === defaultAssistantKey;
+  const agentOptions = useMemo(
+    () =>
+      assistantOptions.map(({ id, label }) => ({
+        id,
+        label,
+      })),
+    [assistantOptions],
+  );
+  const knowledgeOptions = useMemo(
+    () =>
+      knowledgeCollections.map((collection) => ({
+        id: collection.name,
+        label: collection.metadata.displayName || collection.name,
+        description: collection.metadata.description,
+      })),
+    [knowledgeCollections],
+  );
   const topic = guidanceIntent?.topic ?? '';
   const prompt = guidanceIntent?.prompt ?? '';
 
   useEffect(() => {
     setCopied(false);
   }, [prompt]);
+
+  useEffect(() => {
+    if (!showKnowledgeSelector) {
+      setSelectedKnowledgeIds([]);
+      hasRequestedKnowledge.current = false;
+    }
+  }, [showKnowledgeSelector]);
+
+  useEffect(() => {
+    if (
+      previousAssistantKeyRef.current &&
+      previousAssistantKeyRef.current !== selectedAssistantKey
+    ) {
+      setThreadId(null);
+    }
+    previousAssistantKeyRef.current = selectedAssistantKey;
+  }, [selectedAssistantKey, setThreadId]);
+
+  const fetchKnowledgeCollections = useCallback(async () => {
+    if (!onKnowledgeCollectionsChange) {
+      return;
+    }
+    setKnowledgeLoading(true);
+    try {
+      const response = await fetch('/api/knowledge/collections', {
+        cache: 'no-store',
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json?.error ?? '加载知识库失败');
+      }
+      const data: KnowledgeBase[] = Array.isArray(json.data) ? json.data : [];
+      onKnowledgeCollectionsChange(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '无法加载知识库';
+      toast.error(message);
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  }, [onKnowledgeCollectionsChange]);
+
+  useEffect(() => {
+    if (!showKnowledgeSelector || !onKnowledgeCollectionsChange) {
+      return;
+    }
+    if (knowledgeCollections.length > 0) {
+      hasRequestedKnowledge.current = true;
+      return;
+    }
+    if (hasRequestedKnowledge.current) {
+      return;
+    }
+    hasRequestedKnowledge.current = true;
+    fetchKnowledgeCollections();
+  }, [
+    fetchKnowledgeCollections,
+    knowledgeCollections.length,
+    onKnowledgeCollectionsChange,
+    showKnowledgeSelector,
+  ]);
 
   const handleCopyPrompt = useCallback(async () => {
     if (!prompt) {
@@ -388,6 +606,8 @@ function AIChatPanel({ guidanceIntent, onClearGuidance }: AIChatPanelProps) {
     }
   }, [prompt]);
 
+  const kgOverride = showKnowledgeSelector ? selectedKnowledgeIds : undefined;
+
   return (
     <section className="relative flex h-full min-h-0 flex-col bg-gradient-to-b from-white via-emerald-50/40 to-emerald-50/5">
       <div
@@ -406,8 +626,8 @@ function AIChatPanel({ guidanceIntent, onClearGuidance }: AIChatPanelProps) {
         }
       >
         <Toaster />
-        <ThreadProvider>
-          <StreamProvider>
+        <ThreadProvider assistantId={activeAssistantId} key={selectedAssistantKey}>
+          <StreamProvider assistantId={activeAssistantId}>
             <ArtifactProvider>
               <div className="flex flex-1 min-h-0 px-6 pb-6 pt-4">
                 <div
@@ -437,7 +657,25 @@ function AIChatPanel({ guidanceIntent, onClearGuidance }: AIChatPanelProps) {
                       </div>
                     </div>
                   ) : null}
-                  <Thread className="!h-full min-h-0" />
+                  <Thread
+                    className="!h-full min-h-0"
+                    allowUploads={allowUploads}
+                    agentOptions={agentOptions}
+                    selectedAgentId={selectedAssistantKey}
+                    agentDefaultId={defaultAssistantKey}
+                    onSelectAgent={(id) =>
+                      setSelectedAssistantKey(id as AssistantOptionId)
+                    }
+                    knowledgeOptions={showKnowledgeSelector ? knowledgeOptions : undefined}
+                    selectedKnowledgeIds={
+                      showKnowledgeSelector ? selectedKnowledgeIds : undefined
+                    }
+                    onKnowledgeChange={
+                      showKnowledgeSelector ? setSelectedKnowledgeIds : undefined
+                    }
+                    knowledgeLoading={knowledgeLoading}
+                    kgOverride={kgOverride}
+                  />
                 </div>
               </div>
             </ArtifactProvider>
@@ -452,6 +690,9 @@ export default function DashboardPage() {
   const [activeMenu, setActiveMenu] = useState<PanelId>('ai');
   const [aiGuidanceIntent, setAIGuidanceIntent] = useState<AIGuidanceIntent | null>(null);
   const [isSettingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [isProfileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => loadUserProfile());
+  const [knowledgeCollections, setKnowledgeCollections] = useState<KnowledgeBase[]>([]);
   const router = useRouter();
 
   const handleSelectPanel = useCallback(
@@ -475,10 +716,17 @@ export default function DashboardPage() {
   const handleClearGuidance = useCallback(() => setAIGuidanceIntent(null), []);
 
   const handleOpenSettingsDialog = useCallback(() => setSettingsDialogOpen(true), []);
+  const handleOpenProfileDialog = useCallback(() => setProfileDialogOpen(true), []);
 
   const handleLogout = useCallback(() => {
     router.push('/login');
   }, [router]);
+
+  const handleSaveProfile = useCallback((profile: UserProfile) => {
+    const sanitizedProfile = sanitizeUserProfile(profile);
+    setUserProfile(sanitizedProfile);
+    saveUserProfile(sanitizedProfile);
+  }, []);
 
   const activePanel = featurePanels[activeMenu] ?? featurePanels.dashboard;
   const panelContext: FeaturePanelRenderContext = {
@@ -486,6 +734,9 @@ export default function DashboardPage() {
     startAIGuidance: handleStartGuidance,
     aiGuidanceIntent,
     clearAIGuidance: handleClearGuidance,
+    userProfile,
+    knowledgeCollections,
+    setKnowledgeCollections,
   };
 
   return (
@@ -496,7 +747,9 @@ export default function DashboardPage() {
           active={activeMenu}
           onSelect={handleSelectPanel}
           onOpenSettings={handleOpenSettingsDialog}
+          onOpenProfile={handleOpenProfileDialog}
           onLogout={handleLogout}
+          profile={userProfile}
         />
 
         <div className="flex-1 flex flex-col">
@@ -508,6 +761,12 @@ export default function DashboardPage() {
       </div>
 
       <SystemSettingsDialog open={isSettingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
+      <UserProfileDialog
+        open={isProfileDialogOpen}
+        onOpenChange={setProfileDialogOpen}
+        profile={userProfile}
+        onSave={handleSaveProfile}
+      />
     </>
   );
 }
@@ -517,12 +776,20 @@ type SidebarProps = {
   active: PanelId;
   onSelect: (id: PanelId) => void;
   onOpenSettings: () => void;
+  onOpenProfile: () => void;
   onLogout: () => void;
+  profile: UserProfile;
 };
 
-function Sidebar({ items, active, onSelect, onOpenSettings, onLogout }: SidebarProps) {
+function Sidebar({ items, active, onSelect, onOpenSettings, onOpenProfile, onLogout, profile }: SidebarProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const avatarShort = useMemo(() => getAvatarShort(profile.displayName), [profile.displayName]);
+  const avatarLabel = useMemo(() => getAvatarLabel(profile.displayName), [profile.displayName]);
+  const profileSubtitle = useMemo(() => {
+    const segments = [profile.role, profile.department].filter(Boolean);
+    return segments.length ? segments.join(' · ') : '';
+  }, [profile.department, profile.role]);
 
   useEffect(() => {
     if (!isUserMenuOpen) {
@@ -559,11 +826,11 @@ function Sidebar({ items, active, onSelect, onOpenSettings, onLogout }: SidebarP
 
   const userMenuItems: UserMenuItem[] = [
     {
-      id: 'plan',
-      label: '升级套餐',
-      description: '解锁更高的调用配额',
-      icon: Sparkles,
-      action: () => toast('升级套餐功能即将上线'),
+      id: 'profile',
+      label: '个人信息',
+      description: '用户信息配置与修改',
+      icon: User,
+      action: onOpenProfile,
     },
     {
       id: 'personalize',
@@ -630,11 +897,11 @@ function Sidebar({ items, active, onSelect, onOpenSettings, onLogout }: SidebarP
         >
           <div className="flex items-center space-x-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white font-semibold">
-              Z
+              {avatarShort}
             </div>
             <div>
-              <p className="font-medium text-white">张会计</p>
-              <p className="text-xs text-emerald-100/80">@finance.ops</p>
+              <p className="font-medium text-white">{profile.displayName}</p>
+              <p className="text-xs text-emerald-100/80">{profile.handle}</p>
             </div>
           </div>
           <User size={18} className="text-emerald-100/80" />
@@ -644,11 +911,14 @@ function Sidebar({ items, active, onSelect, onOpenSettings, onLogout }: SidebarP
           <div className="absolute bottom-[calc(100%+12px)] left-6 right-6 z-30 rounded-3xl border border-white/15 bg-emerald-950/90 p-4 text-sm text-white shadow-2xl shadow-emerald-950/40 backdrop-blur-xl">
             <div className="flex items-center gap-3 pb-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-base font-semibold text-white shadow-inner shadow-emerald-900/30">
-                ZD
+                {avatarLabel}
               </div>
               <div>
-                <p className="text-base font-semibold">张会计</p>
-                <p className="text-xs text-emerald-100/70">@finance.ops</p>
+                <p className="text-base font-semibold">{profile.displayName}</p>
+                <p className="text-xs text-emerald-100/70">{profile.handle}</p>
+                {profileSubtitle ? (
+                  <p className="text-xs text-emerald-100/50">{profileSubtitle}</p>
+                ) : null}
               </div>
             </div>
             <div className="my-3 h-px bg-white/10" />
@@ -728,6 +998,202 @@ function DashboardHeader({ title, description }: DashboardHeaderProps) {
         </div>
       </div>
     </header>
+  );
+}
+
+type UserProfileDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  profile: UserProfile;
+  onSave: (profile: UserProfile) => void;
+};
+
+function UserProfileDialog({ open, onOpenChange, profile, onSave }: UserProfileDialogProps) {
+  const [draft, setDraft] = useState<UserProfile>(profile);
+
+  useEffect(() => {
+    if (open) {
+      setDraft(profile);
+    }
+  }, [open, profile]);
+
+  const handleChange =
+    (field: keyof UserProfile) =>
+      (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setDraft((prev) => ({
+          ...prev,
+          [field]: event.target.value,
+        }));
+      };
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSave(draft);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl border-emerald-100 bg-white/95">
+        <DialogHeader>
+          <DialogTitle className="text-2xl text-gray-900">个人信息</DialogTitle>
+          <DialogDescription className="text-gray-500">
+            更新基础资料、联系方式与偏好配置，便于系统做个性化推荐。
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-5 py-2">
+          <section className="rounded-3xl border border-emerald-100/70 bg-emerald-50/40 p-4">
+            <p className="text-sm font-semibold text-emerald-900">基础信息</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="profile-name" className="text-xs text-emerald-900/80">
+                  姓名
+                </Label>
+                <Input
+                  id="profile-name"
+                  className="mt-1 bg-white/90"
+                  placeholder="请输入姓名"
+                  value={draft.displayName}
+                  onChange={handleChange('displayName')}
+                />
+              </div>
+              <div>
+                <Label htmlFor="profile-handle" className="text-xs text-emerald-900/80">
+                  账号标识
+                </Label>
+                <Input
+                  id="profile-handle"
+                  className="mt-1 bg-white/90"
+                  placeholder="@finance.ops"
+                  value={draft.handle}
+                  onChange={handleChange('handle')}
+                />
+              </div>
+              <div>
+                <Label htmlFor="profile-role" className="text-xs text-emerald-900/80">
+                  岗位角色
+                </Label>
+                <Input
+                  id="profile-role"
+                  className="mt-1 bg-white/90"
+                  placeholder="例如：风控分析师"
+                  value={draft.role}
+                  onChange={handleChange('role')}
+                />
+              </div>
+              <div>
+                <Label htmlFor="profile-department" className="text-xs text-emerald-900/80">
+                  所属部门
+                </Label>
+                <Input
+                  id="profile-department"
+                  className="mt-1 bg-white/90"
+                  placeholder="例如：对公运营部"
+                  value={draft.department}
+                  onChange={handleChange('department')}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-gray-100 bg-gray-50/60 p-4">
+            <p className="text-sm font-semibold text-gray-900">联系方式</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="profile-email" className="text-xs text-gray-500">
+                  邮箱
+                </Label>
+                <Input
+                  id="profile-email"
+                  type="email"
+                  className="mt-1"
+                  placeholder="name@example.com"
+                  value={draft.email}
+                  onChange={handleChange('email')}
+                />
+              </div>
+              <div>
+                <Label htmlFor="profile-phone" className="text-xs text-gray-500">
+                  手机号
+                </Label>
+                <Input
+                  id="profile-phone"
+                  type="tel"
+                  className="mt-1"
+                  placeholder="请输入联系电话"
+                  value={draft.phone}
+                  onChange={handleChange('phone')}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="profile-location" className="text-xs text-gray-500">
+                  办公地点
+                </Label>
+                <Input
+                  id="profile-location"
+                  className="mt-1"
+                  placeholder="例如：苏州 · 金融港"
+                  value={draft.location}
+                  onChange={handleChange('location')}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-indigo-100 bg-indigo-50/40 p-4">
+            <p className="text-sm font-semibold text-indigo-900">个性化偏好</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="profile-target" className="text-xs text-indigo-900/70">
+                  学习目标
+                </Label>
+                <Input
+                  id="profile-target"
+                  className="mt-1 bg-white/90"
+                  placeholder="例如：数字风控分析师"
+                  value={draft.learningTarget}
+                  onChange={handleChange('learningTarget')}
+                />
+              </div>
+              <div>
+                <Label htmlFor="profile-focus" className="text-xs text-indigo-900/70">
+                  关注方向
+                </Label>
+                <Input
+                  id="profile-focus"
+                  className="mt-1 bg-white/90"
+                  placeholder="例如：账户异常识别与资金安全"
+                  value={draft.focusArea}
+                  onChange={handleChange('focusArea')}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="profile-note" className="text-xs text-indigo-900/70">
+                  个人简介
+                </Label>
+                <Textarea
+                  id="profile-note"
+                  className="mt-1 min-h-[90px] resize-none bg-white/90"
+                  placeholder="补充个人擅长方向或备注"
+                  value={draft.note}
+                  onChange={handleChange('note')}
+                />
+              </div>
+            </div>
+          </section>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              取消
+            </Button>
+            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              保存信息
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -920,9 +1386,16 @@ function DashboardOverview() {
 
 type PersonalLearningPanelProps = {
   onGuide: (intent: AIGuidanceIntent) => void;
+  profile?: UserProfile;
 };
 
-function PersonalLearningPanel({ onGuide }: PersonalLearningPanelProps) {
+function PersonalLearningPanel({ onGuide, profile }: PersonalLearningPanelProps) {
+  const learningTarget =
+    profile?.learningTarget?.trim() ||
+    profile?.role?.trim() ||
+    personalLearningProfile.targetRole;
+  const focusArea = profile?.focusArea?.trim();
+
   return (
     <section className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
@@ -932,7 +1405,7 @@ function PersonalLearningPanel({ onGuide }: PersonalLearningPanelProps) {
               <p className="text-xs uppercase tracking-[0.3em] text-indigo-600">个人学习</p>
               <h2 className="mt-2 text-2xl font-semibold text-gray-900">我的学习进度与掌握度</h2>
               <p className="mt-2 text-sm text-gray-600">
-                针对 {personalLearningProfile.targetRole} 目标，系统实时同步掌握情况与复盘建议。
+                针对 {learningTarget} 目标，系统实时同步掌握情况与复盘建议。
               </p>
             </div>
             <div className="text-right">
@@ -977,8 +1450,14 @@ function PersonalLearningPanel({ onGuide }: PersonalLearningPanelProps) {
               </span>
               <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1">
                 <Target className="h-4 w-4 text-slate-500" />
-                {personalLearningProfile.targetRole}
+                {learningTarget}
               </span>
+              {focusArea ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-indigo-700">
+                  <BookOpenCheck className="h-4 w-4" />
+                  {focusArea}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1275,7 +1754,11 @@ type KnowledgeUploadPayload = {
   source?: string;
 };
 
-function KnowledgeBasePanel() {
+type KnowledgeBasePanelProps = {
+  onCollectionsChange?: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>;
+};
+
+function KnowledgeBasePanel({ onCollectionsChange }: KnowledgeBasePanelProps) {
   const [collections, setCollections] = useState<KnowledgeBase[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(true);
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -1347,6 +1830,7 @@ function KnowledgeBasePanel() {
       }
       const data: KnowledgeBase[] = Array.isArray(json.data) ? json.data : [];
       setCollections(data);
+      onCollectionsChange?.(data);
       setSelectedName((prev) => {
         // If we are in detail mode and the selected collection is still available, keep it
         if (viewMode === 'detail' && prev && data.some((item) => item.name === prev)) {
@@ -1516,7 +2000,11 @@ function KnowledgeBasePanel() {
       }
       const updated: KnowledgeBase | undefined = json.data;
       if (updated) {
-        setCollections((prev) => prev.map((item) => (item.name === updated.name ? updated : item)));
+        setCollections((prev) => {
+          const next = prev.map((item) => (item.name === updated.name ? updated : item));
+          onCollectionsChange?.(next);
+          return next;
+        });
       } else {
         await fetchCollections();
       }

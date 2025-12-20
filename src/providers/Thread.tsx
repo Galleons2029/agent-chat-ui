@@ -37,9 +37,15 @@ function getThreadSearchMetadata(
   }
 }
 
-export function ThreadProvider({ children }: { children: ReactNode }) {
+export function ThreadProvider({
+  children,
+  assistantId: assistantIdProp,
+}: {
+  children: ReactNode;
+  assistantId?: string;
+}) {
   const apiUrl = resolveApiUrl();
-  const assistantId = resolveAssistantId();
+  const assistantId = assistantIdProp ?? resolveAssistantId();
   const apiKey = resolveApiKey() || undefined;
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
