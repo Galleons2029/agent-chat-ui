@@ -6,19 +6,22 @@ import {
   CheckCircle2,
   CircleDollarSign,
   BarChart2,
-  MessageSquare,
   Search,
   BadgeAlert,
   Bell,
   User,
   Home,
-  Bot,
   Database,
   FileText,
   Settings,
   GitBranch,
+  Bot,
+  Loader2,
+  Sparkles,
+  Send,
+  RefreshCw,
 } from 'lucide-react';
-import { rawData, suggestionMap, buildFallbackSteps, mermaidData } from '@/app/account/data';
+import { rawData, suggestionMap, buildFallbackSteps } from '@/app/account/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -51,8 +54,24 @@ type NavigationItem = {
   href?: string;
 };
 
+type AssistantMessage = {
+  id: string;
+  role: 'assistant' | 'user';
+  text: string;
+};
+type PlanStep = {
+  description: string;
+  status: 'enabled' | 'disabled';
+};
+type AgentRunResult = {
+  payload: any;
+  output: any;
+  first: any;
+};
+
 const PRIMARY_OWNER = '张会计';
 const ownerPool = [PRIMARY_OWNER, '李财务', '王复核', '赵稽核'];
+const MERMAID_CACHE_KEY = 'account_mermaid_cache';
 
 const classifyRisk = (amt: number) => (amt > 100000 ? '高风险' : amt > 1000 ? '中风险' : '低风险');
 const statusFromDiff = (diffAbs: number, index: number): Row['status'] => {
@@ -136,7 +155,7 @@ type QuickFilterPreset = {
 
 const accountNavigationItems: NavigationItem[] = [
   { id: 'dashboard', label: '数据驾驶舱', icon: Home, color: 'text-white/80', href: '/dashboard' },
-  { id: 'ai', label: 'AI 助手', icon: Bot, color: 'text-white/80', href: '/dashboard' },
+  { id: 'ai', label: 'AI 助手', icon: Bot, color: 'text-white/80', href: '/fin-agent' },
   { id: 'knowledge', label: '知识库', icon: Database, color: 'text-white/80', href: '/dashboard' },
   { id: 'accounts', label: '总分查账', icon: FileText, color: 'text-white', href: '/account' },
   { id: 'analysis', label: '差异分析', icon: BarChart2, color: 'text-white/80', href: '/dashboard' },
@@ -692,6 +711,114 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function ChatBubble({ role, text }: { role: 'assistant' | 'user'; text: string }) {
+  const isUser = role === 'user';
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`max-w-[92%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+          isUser ? 'bg-emerald-600 text-white' : 'border border-gray-100 bg-white text-gray-800 shadow-sm'
+        }`}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function PlanStepCard({
+  steps,
+  loading,
+  running,
+  accepted,
+  onToggle,
+  onReject,
+  onConfirm,
+}: {
+  steps: PlanStep[];
+  loading: boolean;
+  running: boolean;
+  accepted: boolean | null;
+  onToggle: (index: number) => void;
+  onReject: () => void;
+  onConfirm: () => void;
+}) {
+  const enabled = steps.filter((s) => s.status === 'enabled').length;
+  const total = steps.length || 1;
+  const busy = loading || running;
+  return (
+    <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-white via-purple-50/60 to-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-purple-700">Plan steps</p>
+          <p className="text-xs text-gray-500">Toggle before running</p>
+        </div>
+        <span className="text-xs text-gray-600">
+          {enabled}/{total} selected
+        </span>
+      </div>
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Generating plan...</span>
+        </div>
+      ) : (
+        <>
+          <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-purple-100">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-emerald-500 transition-all"
+              style={{ width: `${(enabled / total) * 100}%` }}
+            />
+          </div>
+          <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+            {steps.map((step, idx) => (
+              <label
+                key={`${step.description}-${idx}`}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 text-sm shadow-sm transition ${
+                  step.status === 'enabled' ? 'border-purple-200 bg-white' : 'border-gray-200 bg-gray-50 line-through text-gray-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={step.status === 'enabled'}
+                  onChange={() => onToggle(idx)}
+                  disabled={busy}
+                  className="mt-1 h-4 w-4 rounded border-purple-400 text-purple-600 focus:ring-purple-400"
+                />
+                <span className="leading-relaxed">{step.description}</span>
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={onReject} disabled={busy}>
+              Reject
+            </Button>
+            <Button
+              size="sm"
+              className="bg-purple-600 text-white hover:bg-purple-700"
+              onClick={onConfirm}
+              disabled={busy || enabled === 0}
+            >
+              {running ? 'Running...' : 'Run steps'}
+            </Button>
+          </div>
+          {running ? (
+            <p className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              正在根据待办生成结果...
+            </p>
+          ) : null}
+          {accepted !== null ? (
+            <p className={`mt-2 text-xs ${accepted ? 'text-emerald-600' : 'text-rose-500'}`}>
+              {accepted ? 'Plan approved.' : 'Plan rejected.'}
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 function FullDetailDialog({ row }: { row: Row }) {
   const sbact = row.sbact;
   const gnl = row.gnl;
@@ -700,53 +827,400 @@ function FullDetailDialog({ row }: { row: Row }) {
   const sbj = row.subjectNo;
   const ccy = row.ccy;
   const dt = row.dt;
+  const tupleLabel = `${org}|${sbj}|${ccy}|${dt}`;
 
   const [processing, setProcessing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const logRef = useRef<HTMLDivElement | null>(null);
   const [mermaidChart, setMermaidChart] = useState<string | null>(null);
+  const [mermaidCache, setMermaidCache] = useState<Record<string, string>>({});
+  const [cacheHydrated, setCacheHydrated] = useState(false);
+  const [chatMessages, setChatMessages] = useState<AssistantMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const [sqlMode, setSqlMode] = useState(false);
+  const [lastSqlRequest, setLastSqlRequest] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const [planSteps, setPlanSteps] = useState<PlanStep[]>([]);
+  const [planVisible, setPlanVisible] = useState(false);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [runLoading, setRunLoading] = useState(false);
+  const [planAccepted, setPlanAccepted] = useState<boolean | null>(null);
+  const [planPromptUsed, setPlanPromptUsed] = useState<string | null>(null);
+  const [planAnchorId, setPlanAnchorId] = useState<string | null>(null);
+  const [, setPendingAgentResult] = useState<AgentRunResult | null>(null);
   const suggestionKeyWithDate = `${org}|${sbj}|${ccy}|${dt}`;
   const suggestionKey = `${org}|${sbj}|${ccy}`;
+  const planPresets = [
+    { id: 'simple', label: 'Simple plan', prompt: `Create 5 reconciliation steps for ${tupleLabel}.` },
+    { id: 'complex', label: 'Detailed plan', prompt: `Create 8 detailed reconciliation steps for ${tupleLabel}, highlight risk checks.` },
+  ];
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(MERMAID_CACHE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          setMermaidCache((prev) => ({ ...(parsed as Record<string, string>), ...prev }));
+        }
+      }
+    } catch {
+      // ignore cache hydrate errors
+    } finally {
+      setCacheHydrated(true);
+    }
+  }, []);
   useEffect(() => {
     setLogs([]);
     setMermaidChart(null);
     setProcessing(false);
+    setChatMessages([
+      {
+        id: 'welcome',
+        role: 'assistant',
+        text: `Hi 👋 仅针对当前总分不平记录 ${tupleLabel} 返回核对建议，可直接点击下方测试样例。`,
+      },
+    ]);
+    setChatInput('');
+    setChatLoading(false);
+    setPlanSteps([]);
+    setPlanVisible(false);
+    setPlanLoading(false);
+    setRunLoading(false);
+    setPlanAccepted(null);
+    setPlanPromptUsed(null);
+    setPlanAnchorId(null);
+    setPendingAgentResult(null);
   }, [row.id]);
+  useEffect(() => {
+    const cachedChart = mermaidCache[suggestionKeyWithDate];
+    if (cachedChart) {
+      setMermaidChart(cachedChart);
+    }
+  }, [mermaidCache, suggestionKeyWithDate]);
+  useEffect(() => {
+    if (!cacheHydrated || typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(MERMAID_CACHE_KEY, JSON.stringify(mermaidCache));
+    } catch {
+      // ignore cache persistence errors
+    }
+  }, [cacheHydrated, mermaidCache]);
   const steps = useMemo(
     () => suggestionMap[suggestionKeyWithDate] ?? suggestionMap[suggestionKey] ?? buildFallbackSteps(org, sbj, ccy, dt),
     [suggestionKeyWithDate, suggestionKey, org, sbj, ccy, dt],
   );
-  const resolvedMermaidChart = useMemo(
-    () => mermaidData[suggestionKeyWithDate] ?? mermaidData[suggestionKey] ?? mermaidData.default ?? buildMermaidFlowchartFromSteps(steps),
-    [suggestionKeyWithDate, suggestionKey, steps],
-  );
+  const resolvedMermaidChart = useMemo(() => buildMermaidFlowchartFromSteps(steps), [steps]);
 
-  const startProcessing = () => {
-    if (processing) return;
+  const extractFinAgentResult = (payload: any) => {
+    const output = payload?.output ?? payload ?? {};
+    const candidates: any[] = [
+      output,
+      output?.output,
+      output?.values,
+      ...(Array.isArray(output) ? output : []),
+      ...(Array.isArray(output?.values) ? output.values : []),
+    ].filter(Boolean);
+
+    for (const c of candidates) {
+      if (c && typeof c === 'object' && 'results' in c && Array.isArray((c as any).results) && (c as any).results.length) {
+        return { output: c, first: (c as any).results[0] };
+      }
+    }
+
+    for (const c of candidates) {
+      if (c && typeof c === 'object' && 'results' in c) {
+        return { output: c, first: (c as any).results?.[0] ?? null };
+      }
+    }
+
+    return { output: candidates[0] ?? output, first: null };
+  };
+
+  const fetchFinAgent = async (options?: {
+    planPrompt?: string;
+    selectedSteps?: string[];
+    mode?: 'sql' | 'analysis';
+    sqlRequest?: string;
+  }) => {
+    const body: Record<string, any> = { org, sbj, ccy, dt };
+    if (options?.planPrompt) body.planPrompt = options.planPrompt;
+    if (options?.selectedSteps?.length) body.selectedSteps = options.selectedSteps;
+    if (options?.mode === 'sql') body.mode = 'sql';
+    if (options?.sqlRequest) body.sqlRequest = options.sqlRequest;
+
+    const res = await fetch('/api/fin-agent', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const payload = await res.json();
+    if (!res?.ok) {
+      throw new Error(payload?.error || res?.statusText || '请求失败');
+    }
+    const { output, first } = extractFinAgentResult(payload);
+    return { payload, output, first } as AgentRunResult;
+  };
+
+  const applyAgentPayload = (result: AgentRunResult, allowOverride: boolean) => {
+    const { output, first, payload } = result;
+    const debugRaw = payload ? `DEBUG raw: ${JSON.stringify(payload).slice(0, 8000)}` : '';
+
+    const resolvedChart =
+      normalizeMermaidCode(first?.mermaid) ||
+      normalizeMermaidCode((output as any)?.mermaid) ||
+      normalizeMermaidCode(resolvedMermaidChart);
+    setMermaidChart((prev) => {
+      if (prev && !allowOverride) return prev;
+      return resolvedChart;
+    });
+    setMermaidCache((prev) => {
+      const existing = prev[suggestionKeyWithDate];
+      if (existing && !allowOverride) return prev;
+      return { ...prev, [suggestionKeyWithDate]: resolvedChart };
+    });
+
+    const logLines = buildFinAgentLogs(first ?? output);
+    if (logLines.length) {
+      setLogs(debugRaw ? [...logLines, debugRaw] : logLines);
+    } else if ((output as any)?.results && Array.isArray((output as any)?.results)) {
+      setLogs([
+        ...buildLogChunks(['Backend returned results but content is empty, please check data source.']),
+        ...(debugRaw ? [debugRaw] : []),
+      ]);
+    } else if ((output as any)?.summary) {
+      setLogs([
+        ...buildLogChunks([`Summary: ${JSON.stringify((output as any).summary)}`]),
+        ...(debugRaw ? [debugRaw] : []),
+      ]);
+    } else {
+      setLogs([
+        ...buildLogChunks([
+          'No actionable result found, please verify fin_agent output shape or org/sbj/ccy/dt filter.',
+          `Raw response: ${JSON.stringify(output).slice(0, 400)}`,
+        ]),
+        ...(debugRaw ? [debugRaw] : []),
+      ]);
+    }
+  };
+
+  
+  const appendMessage = (role: AssistantMessage['role'], text: string) => {
+    const id = `${role}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+    setChatMessages((prev) => [...prev, { id, role, text }]);
+    return id;
+  };
+
+  const buildPlanPromptFromMessage = (message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed) {
+      return `Create 6 reconciliation steps for ${tupleLabel}, include risk checks.`;
+    }
+    return `基于当前总分不平记录 ${tupleLabel}，将用户诉求整理为可执行核对步骤（5-8条待办），${trimmed}`;
+  };
+
+  const buildSqlReply = (result: AgentRunResult) => {
+    const output = result.output ?? {};
+    const lines: string[] = [];
+    if (output.sql_query) {
+      lines.push('SQL:');
+      lines.push(String(output.sql_query));
+    }
+    if (output.sql_result) {
+      lines.push('Result:');
+      lines.push(String(output.sql_result));
+    }
+    return lines.length ? lines.join('\n') : '未查询到结果，可能当日无交易或数据缺失。';
+  };
+
+  const handleSendChat = async (textOverride?: string) => {
+    if (chatLoading) return;
+    const content = (textOverride ?? chatInput).trim();
+
+    if (sqlMode) {
+      const userContent = content || '请输入 SQL 请求，例如查询该账户的分户余额差异';
+      appendMessage('user', userContent);
+      setChatInput('');
+      setChatLoading(true);
+      setPlanVisible(false);
+      setPlanLoading(false);
+      setPlanAccepted(null);
+      setRunLoading(false);
+      setPlanPromptUsed(null);
+      setPlanAnchorId(null);
+      setLastSqlRequest(userContent);
+      try {
+        const result = await fetchFinAgent({ mode: 'sql', sqlRequest: userContent });
+        applyAgentPayload(result, true);
+        appendMessage('assistant', buildSqlReply(result));
+      } catch (e: any) {
+        appendMessage('assistant', `Request failed: ${e?.message ?? String(e)}`);
+      } finally {
+        setChatLoading(false);
+      }
+      return;
+    }
+
+    const userContent = content || `Please provide reconciliation steps for ${tupleLabel}.`;
+    const anchorId = appendMessage('user', userContent);
+    setChatInput('');
+    setChatLoading(true);
+    setPlanVisible(true);
+    setPlanLoading(true);
+    setPlanAccepted(null);
+    setRunLoading(false);
+    setPlanAnchorId(anchorId);
+    const planPrompt = buildPlanPromptFromMessage(userContent);
+    setPlanPromptUsed(planPrompt);
+    try {
+      const result = await fetchFinAgent({ planPrompt });
+      setPendingAgentResult(result);
+      setPlanSteps(extractPlanStepsFromOutput(result.first ?? result.output));
+    } catch (e: any) {
+      setPlanSteps(steps.map((s) => ({ description: s, status: 'enabled' })));
+      appendMessage('assistant', `Request failed: ${e?.message ?? String(e)}`);
+    } finally {
+      setChatLoading(false);
+      setPlanLoading(false);
+    }
+  };
+
+  const handleRunSample = () => {
+    const sample = `Sample: ${tupleLabel} needs reconciliation advice.`;
+    handleSendChat(sample);
+  };
+
+  const startProcessing = async (opts?: {
+    allowOverride?: boolean;
+    prefetched?: AgentRunResult | null;
+    planPrompt?: string | null;
+    selectedSteps?: string[];
+  }): Promise<AgentRunResult | null> => {
+    const allowOverride = opts?.allowOverride ?? false;
+    if (processing) return null;
     setProcessing(true);
     setLogs([]);
-    const chunkedSteps = buildLogChunks(steps);
-    let i = 0;
-    const timer = window.setInterval(() => {
-      setLogs((prev) => [...prev, chunkedSteps[i]]);
-      i += 1;
-      if (i >= chunkedSteps.length) {
-        window.clearInterval(timer);
-        setProcessing(false);
-      }
-    }, 600);
+
+    try {
+      const result =
+        opts?.prefetched ??
+        (await fetchFinAgent({ planPrompt: opts?.planPrompt ?? undefined, selectedSteps: opts?.selectedSteps }));
+      applyAgentPayload(result, allowOverride);
+      return result;
+    } catch (e: any) {
+      setLogs([`请求失败: ${e?.message ?? String(e)}`, `DEBUG raw error response: ${String(e)}`]);
+      setMermaidChart('');
+      return null;
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const handleGenerateFlowchart = () => {
-    setMermaidChart(resolvedMermaidChart);
+  const extractPlanStepsFromOutput = (agentOutput: any): PlanStep[] => {
+    const fromRoot = Array.isArray(agentOutput?.plan_steps) ? agentOutput.plan_steps : [];
+    const fromResult =
+      Array.isArray(agentOutput?.results) && agentOutput.results.length && Array.isArray(agentOutput.results[0]?.plan_steps)
+        ? agentOutput.results[0].plan_steps
+        : [];
+    const source = fromRoot.length ? fromRoot : fromResult;
+    const mapped = (source as any[]).map((item) => {
+      const description = typeof item === 'string' ? item : item?.description;
+      if (!description) return null;
+      const status = typeof item === 'object' && item?.status === 'disabled' ? 'disabled' : 'enabled';
+      return { description, status } as PlanStep;
+    });
+    const cleaned = mapped.filter(Boolean) as PlanStep[];
+    if (cleaned.length) return cleaned;
+    return steps.map((d) => ({ description: d, status: 'enabled' }));
   };
+
+  const handlePlanPreset = async (prompt: string) => {
+    setPlanVisible(true);
+    setPlanLoading(true);
+    setPlanAccepted(null);
+    setPlanPromptUsed(prompt);
+    setRunLoading(false);
+    setPlanAnchorId(chatMessages[chatMessages.length - 1]?.id ?? null);
+    try {
+      const result = await fetchFinAgent({ planPrompt: prompt });
+      setPendingAgentResult(result);
+      setPlanSteps(extractPlanStepsFromOutput(result.first ?? result.output));
+    } catch (e: any) {
+      setPlanSteps(steps.map((s) => ({ description: s, status: 'enabled' })));
+      setLogs((prev) => (prev.length ? prev : [`Plan generation failed: ${e?.message ?? String(e)}`]));
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  const handleTogglePlanStep = (index: number) => {
+    setPlanSteps((prev) =>
+      prev.map((step, i) => (i === index ? { ...step, status: step.status === 'enabled' ? 'disabled' : 'enabled' } : step)),
+    );
+  };
+
+  const handleRejectPlan = () => {
+    setPlanAccepted(false);
+    setPendingAgentResult(null);
+  };
+
+  const handleConfirmPlan = async () => {
+    if (processing || runLoading) return;
+    const baseSteps = planSteps.length ? planSteps : steps.map((s) => ({ description: s, status: 'enabled' }));
+    const selected = baseSteps.filter((s) => s.status === 'enabled').map((s) => s.description);
+    setRunLoading(true);
+    const result = await startProcessing({ allowOverride: true, planPrompt: planPromptUsed, selectedSteps: selected });
+    if (result) {
+      setPlanAccepted(true);
+      const lines = buildFinAgentLogs(result.first ?? result.output);
+      const reply =
+        lines.length > 0
+          ? lines.join('\n')
+          : 'AI did not return details. Please check fin_agent config and retry.';
+      appendMessage('assistant', reply);
+    } else {
+      setPlanAccepted(false);
+      appendMessage('assistant', '执行失败，请稍后重试。');
+    }
+    setRunLoading(false);
+  };
+
+  const handleGenerateFlowchart = async (forceRefresh = false) => {
+    if (processing) return;
+    let cached: string | null = mermaidCache[suggestionKeyWithDate] ?? null;
+    if (!forceRefresh && !cached && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(MERMAID_CACHE_KEY);
+        const parsed = stored ? (JSON.parse(stored) as Record<string, string>) : null;
+        cached = parsed?.[suggestionKeyWithDate] ?? null;
+        if (cached) {
+          setMermaidCache((prev) => (prev[suggestionKeyWithDate] ? prev : { ...prev, [suggestionKeyWithDate]: cached }));
+        }
+      } catch {
+        // ignore malformed cache
+      }
+    }
+    if (!forceRefresh && cached) {
+      setMermaidChart(cached);
+      return;
+    }
+    await startProcessing({ allowOverride: forceRefresh });
+  };
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, planVisible, planSteps, planLoading, runLoading, planAnchorId]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [logs]);
 
   return (
-    <DialogContent className="w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6">
+    <DialogContent className="w-full max-w-5xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-6">
       <DialogHeader>
         <DialogTitle>差异详情</DialogTitle>
         <DialogDescription>
@@ -754,7 +1228,7 @@ function FullDetailDialog({ row }: { row: Row }) {
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid gap-6 lg:grid-cols-[3fr,2fr]">
+      <div className="grid gap-6 overflow-x-hidden lg:grid-cols-[3fr,1.4fr]">
         <div className="space-y-6">
           <Section title="财务数据" icon={<CircleDollarSign className="size-4" />}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -775,7 +1249,7 @@ function FullDetailDialog({ row }: { row: Row }) {
 
           <Section title="基础信息" icon={<FileText className="size-4" />}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <InfoRow label="机构号" value={org} />
+              <InfoRow label="机构" value={org} />
               <InfoRow label="科目编号" value={sbj} />
               <InfoRow label="币种" value={ccy} />
               <InfoRow label="账期" value={dt} />
@@ -784,6 +1258,159 @@ function FullDetailDialog({ row }: { row: Row }) {
         </div>
 
         <div className="space-y-5">
+          <div className="rounded-3xl border border-emerald-100 bg-white/95 shadow-sm ring-1 ring-emerald-50">
+            <div className="flex items-center justify-between border-b border-emerald-100 bg-white/80 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900">AI 查账助手</p>
+                  <p className="text-xs text-emerald-600">只接收当前总分不平数据，输出核对建议</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-emerald-700"
+                onClick={handleRunSample}
+                disabled={chatLoading}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${chatLoading ? 'animate-spin' : ''}`} />
+                运行样例
+              </Button>
+            </div>
+            <div className="space-y-3 px-4 py-4">
+              <div className="flex flex-wrap gap-2 text-xs text-gray-700">
+                <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">org {org}</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">sbj {sbj}</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">ccy {ccy}</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">dt {dt}</span>
+              </div>
+              <div className="rounded-2xl border border-dashed border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-800">
+                测试样例：{tupleLabel}
+              </div>
+              <p className="text-xs text-gray-500">发送消息会在聊天中生成待办清单，确认后点击 Run 生成结果。</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {planPresets.map((preset) => (
+                  <Button
+                    key={preset.id}
+                    variant="outline"
+                    size="sm"
+                    className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                    onClick={() => handlePlanPreset(preset.prompt)}
+                    disabled={planLoading || processing}
+                  >
+                    {planLoading && planPromptUsed === preset.prompt ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    {preset.label}
+                  </Button>
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-purple-700"
+                  onClick={() => handlePlanPreset(`Create 6 reconciliation steps for ${tupleLabel}, include risk checks.`)}
+                  disabled={planLoading || processing}
+                >
+                  Generate plan
+                </Button>
+                <Button
+                  variant={sqlMode ? 'default' : 'outline'}
+                  size="sm"
+                  className={sqlMode ? 'bg-emerald-600 text-white' : 'border-emerald-200 text-emerald-700'}
+                  onClick={() => {
+                    setSqlMode((prev) => !prev);
+                    setLastSqlRequest(null);
+                    setPlanVisible(false);
+                    setPlanLoading(false);
+                    setPlanSteps([]);
+                    setPlanAccepted(null);
+                    setPlanPromptUsed(null);
+                    setRunLoading(false);
+                    requestAnimationFrame(() => chatInputRef.current?.focus());
+                  }}
+                >
+                  {sqlMode ? 'SQL mode on' : 'SQL mode'}
+                </Button>
+              </div>
+              <div
+                ref={chatScrollRef}
+                className="max-h-[260px] min-h-[180px] space-y-2 overflow-y-auto rounded-2xl border border-gray-100 bg-gray-50/80 p-3"
+              >
+                {chatMessages.map((m) => (
+                  <React.Fragment key={m.id}>
+                    <ChatBubble role={m.role} text={m.text} />
+                    {planVisible && planAnchorId === m.id ? (
+                      <div className="flex justify-start">
+                        <div className="max-w-[92%]">
+                          <PlanStepCard
+                            steps={planSteps.length ? planSteps : steps.map((s) => ({ description: s, status: 'enabled' }))}
+                            loading={planLoading}
+                            running={runLoading}
+                            accepted={planAccepted}
+                            onToggle={handleTogglePlanStep}
+                            onReject={handleRejectPlan}
+                            onConfirm={handleConfirmPlan}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </React.Fragment>
+                ))}
+                {planVisible && !planAnchorId ? (
+                  <div className="flex justify-start">
+                    <div className="max-w-[92%]">
+                      <PlanStepCard
+                        steps={planSteps.length ? planSteps : steps.map((s) => ({ description: s, status: 'enabled' }))}
+                        loading={planLoading}
+                        running={runLoading}
+                        accepted={planAccepted}
+                        onToggle={handleTogglePlanStep}
+                        onReject={handleRejectPlan}
+                        onConfirm={handleConfirmPlan}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  ref={chatInputRef}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder={
+                    sqlMode
+                      ? '输入业务 SQL 请求，例如：查询该 org/sbj/ccy/dt 的分户余额差异'
+                      : '输入追问，例如：先核对分户流水还是总账？'
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      handleSendChat();
+                    }
+                  }}
+                />
+                <Button
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  onClick={() => handleSendChat()}
+                  disabled={chatLoading}
+                >
+                  {chatLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  发送
+                </Button>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                {sqlMode
+                  ? 'SQL mode: 输入自然语言请求，生成并执行 SQL。'
+                  : '提示：只携带 org/sbj/ccy/dt 作为上下文，其余输入视为追问内容。'}
+              </p>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-emerald-100 bg-gradient-to-b from-white to-emerald-50/60 shadow-inner ring-1 ring-emerald-50">
             <div className="flex items-center justify-between border-b border-emerald-100 bg-white/80 px-4 py-3">
               <div className="flex items-center gap-3">
@@ -792,64 +1419,47 @@ function FullDetailDialog({ row }: { row: Row }) {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-emerald-900">流程图处理</p>
-                  <p className="text-xs text-emerald-600">点击“生成流程图”查看差异具体处理路径</p>
+                  <p className="text-xs text-emerald-600">首次生成后默认读取历史版本，再次打开不重复调用后端。</p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                className="border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-                onClick={handleGenerateFlowchart}
-              >
-                {mermaidChart ? '重新生成' : '生成流程图'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                  onClick={() => handleGenerateFlowchart(false)}
+                  disabled={processing}
+                >
+                  {processing ? '生成中...' : mermaidChart ? '查看已生成' : '生成流程图'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-emerald-600"
+                  onClick={() => handleGenerateFlowchart(true)}
+                  disabled={processing}
+                >
+                  强制刷新
+                </Button>
+              </div>
             </div>
             <div className="p-4">
               {mermaidChart ? (
-                <MermaidDiagram chart={mermaidChart} className="bg-white" />
+                <div className="max-h-[520px] overflow-auto rounded-xl border border-emerald-50 bg-white">
+                  <MermaidDiagram chart={mermaidChart} className="bg-white max-w-full" />
+                </div>
               ) : (
                 <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-emerald-200 bg-white/80 px-4 text-center text-sm text-muted-foreground">
                   <p>流程图会基于当前机构、科目与币种的历史经验生成。</p>
-                  <p className="mt-2 text-xs text-emerald-700">点击上方按钮快速预览处理步骤</p>
+                  <p className="mt-2 text-xs text-emerald-700">点击上方按钮快速预览处理步骤。</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex h-[360px] flex-col overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-b from-white to-emerald-50/70 shadow-inner">
-            <div className="flex items-center justify-between border-b border-emerald-100 bg-white/80 p-4">
-              <div>
-                <p className="text-sm font-semibold text-emerald-900">AI处理助手</p>
-                <p className="text-xs text-emerald-600">点击“开始处理”后生成建议记录，包含具体的详细数据分析流动</p>
-              </div>
-              <span className={`text-xs font-medium ${processing ? 'text-emerald-600 animate-pulse' : 'text-gray-400'}`}>
-                {processing ? '执行中…' : '待启动'}
-              </span>
-            </div>
-            <div className="flex-1 space-y-3 overflow-y-auto bg-white/70 px-4 py-3 scrollbar-thin" ref={logRef}>
-              {logs.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                  <MessageSquare className="mb-3 text-emerald-400" size={28} />
-                  <p>点击“开始处理”后，这里会以聊天形式展示每一步数据流动分析。</p>
-                </div>
-              ) : (
-                logs.map((line, idx) => (
-                  <div key={idx} className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
-                      <Bot size={16} />
-                    </div>
-                    <div className="max-w-[85%] rounded-2xl bg-white px-4 py-2 text-sm text-gray-800 shadow ring-1 ring-emerald-100">{line}</div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="flex items-center justify-end gap-3 border-t border-emerald-100 bg-white/90 p-4">
-              <DialogClose asChild>
-                <Button variant="outline">关闭</Button>
-              </DialogClose>
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={startProcessing} disabled={processing}>
-                {processing ? '处理中…' : '开始处理'}
-              </Button>
-            </div>
+          <div className="flex items-center justify-end gap-3">
+            <DialogClose asChild>
+              <Button variant="outline">关闭</Button>
+            </DialogClose>
           </div>
         </div>
       </div>
@@ -868,6 +1478,20 @@ function formatPct(p: number) {
 
 function sumAbs(nums: number[]) {
   return nums.reduce((a, b) => a + Math.abs(b || 0), 0);
+}
+
+function normalizeMermaidCode(chart?: string | null) {
+  if (!chart) return '';
+  // Convert literal "\n" into real newlines for Mermaid parsing
+  const unescaped = chart.replace(/\\n/g, '\n').trim();
+  const fenced = unescaped.match(/^```(?:mermaid)?\s*([\s\S]*?)```$/i);
+  const raw = fenced?.[1] ? fenced[1].trim() : unescaped.replace(/^mermaid\s*/i, '').trim();
+  // Drop duplicated graph headers if present
+  const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length >= 2 && /^graph\s+/i.test(lines[0]) && /^graph\s+/i.test(lines[1])) {
+    lines.shift();
+  }
+  return lines.join('\n');
 }
 
 function buildLogChunks(lines: string[]) {
@@ -890,7 +1514,7 @@ function buildLogChunks(lines: string[]) {
   return result.length > 0 ? result : ['暂无详细处理记录，请补充分析。'];
 }
 function buildMermaidFlowchartFromSteps(steps: string[]) {
-  if (!steps.length) return mermaidData.default;
+  if (!steps.length) return '';
   const sanitize = (text: string) =>
     text
       .replace(/[\[\]]/g, '')
@@ -901,4 +1525,21 @@ function buildMermaidFlowchartFromSteps(steps: string[]) {
   const edges = steps.slice(1).map((_, idx) => `  s${idx} --> s${idx + 1}`);
   const classLine = `  class ${steps.map((_, idx) => `s${idx}`).join(',')} step`;
   return ['flowchart TD', '  classDef step fill:#ecfdf5,stroke:#34d399,stroke-width:1px', ...nodes, ...edges, classLine].join('\n');
+}
+function buildFinAgentLogs(result: any): string[] {
+  if (!result) return [];
+  if (Array.isArray(result.log_lines) && result.log_lines.length) {
+    return buildLogChunks(result.log_lines);
+  }
+  const lines: string[] = [];
+  lines.push(`机构 ${result.org_num ?? '-'} 科目 ${result.sbj_num ?? '-'} 币种 ${result.ccy ?? '-'} 日期 ${result.acg_dt ?? '-'}`);
+  if (result.type) lines.push(`分类: ${result.type}`);
+  if (result.history_total_diff !== undefined) lines.push(`History 差额: ${result.history_total_diff}`);
+  if (result.individual_total_diff !== undefined) lines.push(`Individual 差额: ${result.individual_total_diff}`);
+  if (typeof result.account_inconsistent_count === 'number') lines.push(`不一致账户数: ${result.account_inconsistent_count}`);
+  if (Array.isArray(result.change_list) && result.change_list.length) lines.push(`差额序列: ${result.change_list.join(' -> ')}`);
+  if (Array.isArray(result.change_dates) && result.change_dates.length) lines.push(`变化日期: ${result.change_dates.join(', ')}`);
+  if (result.zero_span?.start || result.zero_span?.end) lines.push(`异常区间: ${result.zero_span?.start ?? '?'} ~ ${result.zero_span?.end ?? '?'}`);
+  if (result.red_blue_cancellations?.summary?.note) lines.push(`冲销检查: ${result.red_blue_cancellations.summary.note}`);
+  return buildLogChunks(lines);
 }
